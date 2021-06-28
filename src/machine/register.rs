@@ -1,48 +1,52 @@
+//! A register structure to save something.
+
 use std::any::Any;
+use std::sync::Arc;
+
+use super::BaseType;
 
 #[derive(Debug)]
 pub struct Register {
-    contents: Box<dyn Any>,
+    contents: BaseType,
 }
 
 impl Register {
     pub fn new() -> Self {
-        Register { contents: Box::new(String::from("*unassigned*")) }
+        Self {
+            contents: Arc::new(String::from("*unassigned*")),
+        }
     }
 
-    pub fn get(&self) -> &dyn Any {
-        self.contents.as_ref()
+    pub fn get(&self) -> BaseType {
+        Arc::clone(&self.contents)
     }
 
-    pub fn set<T: Any + Copy>(&mut self, value: &T) {
-        self.contents = Box::new(value.clone());
+    pub fn set<T>(&mut self, value: T)
+    where
+        T: Any + Send + Sync,
+    {
+        self.contents = Arc::new(value);
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod register_tests {
     use super::*;
 
     #[test]
     fn test_get_register_contents() {
         let reg: Register = Register::new();
-        let right: String = String::from("*unassigned*");
-        if let Some(left) = reg.get().downcast_ref::<String>() {
-            assert_eq!(left, &right);
-        } else {
-            assert!(false);
-        }
+        let expected = Arc::new(String::from("*unassigned*"));
+        let actual = reg.get();
+        assert_eq!(expected, actual.downcast::<String>().unwrap());
     }
 
     #[test]
     fn test_set_register_contents() {
         let mut reg: Register = Register::new();
-        let right: i32 = 12345678;
-        reg.set(&right);
-        if let Some(&left) = reg.get().downcast_ref::<i32>() {
-            assert_eq!(left, right);
-        } else {
-            assert!(false);
-        }
+        let expected: i32 = 12345678;
+        reg.set(expected);
+        let actual = reg.get();
+        assert_eq!(Arc::new(expected), actual.downcast::<i32>().unwrap());
     }
 }
