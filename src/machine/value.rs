@@ -1,9 +1,12 @@
+use std::any::{type_name, Any, TypeId};
 use std::convert::{From, TryFrom};
 use std::fmt;
+use std::sync::Arc;
 
 use impl_trait_for_tuples::*;
 
 use super::errors::{MachineError, Result, TypeError};
+use super::BaseType;
 
 /// An enum of the possible value types that can be sent to an operation.
 #[derive(Clone, Debug)]
@@ -12,6 +15,7 @@ pub enum Value {
     Float(f64),
     String(String),
     Boolean(bool),
+    Compound(CompoundValue),
 }
 
 impl PartialEq for Value {
@@ -97,6 +101,58 @@ impl FromValueList for Tuple {
                 MachineError::ToTupleError
             )?.clone())? ),*
         )))
+    }
+}
+
+/// Container for the composite value.
+#[derive(Clone)]
+pub struct CompoundValue {
+    /// actual value
+    inner: BaseType,
+    /// type name of the actual value
+    inner_type_name: &'static str,
+}
+
+impl fmt::Debug for CompoundValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "CompoundValue<{}>", self.inner_type_name)
+    }
+}
+
+impl PartialEq for CompoundValue {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_id() == other.type_id()
+    }
+}
+
+impl CompoundValue {
+    pub fn new<T>(result: T) -> Self
+    where
+        T: Any + Send + Sync,
+    {
+        Self {
+            inner: Arc::new(result),
+            inner_type_name: type_name::<T>(),
+        }
+    }
+
+    pub fn type_id(&self) -> TypeId {
+        self.inner.as_ref().type_id()
+    }
+
+    pub fn value(&self) -> BaseType {
+        Arc::clone(&self.inner)
+    }
+
+    pub fn downcast_ref<T>(&self) -> Result<&T>
+    where
+        T: Any + Send + Sync,
+    {
+        self.inner.as_ref().downcast_ref().ok_or_else(|| {
+            TypeError::expected(self.inner_type_name)
+                .got(type_name::<T>())
+                .into()
+        })
     }
 }
 
