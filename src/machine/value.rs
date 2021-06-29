@@ -49,6 +49,31 @@ impl fmt::Display for Value {
     }
 }
 
+impl Value {
+    pub fn new<T>(val: T) -> Self
+    where
+        T: Any + Send + Sync + fmt::Display,
+    {
+        let type_id = val.type_id();
+        if TypeId::of::<i32>() == type_id {
+            Self::Integer(*(&val as &dyn Any).downcast_ref::<i32>().unwrap())
+        } else if TypeId::of::<f64>() == type_id {
+            Self::Float(*(&val as &dyn Any).downcast_ref::<f64>().unwrap())
+        } else if TypeId::of::<bool>() == type_id {
+            Self::Boolean(*(&val as &dyn Any).downcast_ref::<bool>().unwrap())
+        } else if TypeId::of::<String>() == type_id {
+            Self::String(
+                (&val as &dyn Any)
+                    .downcast_ref::<String>()
+                    .unwrap()
+                    .to_owned(),
+            )
+        } else {
+            Self::Compound(CompoundValue::new(val))
+        }
+    }
+}
+
 /// Convert Value types to Rust types.
 pub trait FromValue: Clone {
     fn from_value(val: Value) -> Result<Self>;
@@ -180,15 +205,15 @@ mod value_mod_tests {
 
     #[test]
     fn test_value_compare() {
-        let a = Value::Integer(1);
+        let a = Value::new(1);
         let b = Value::Integer(2);
-        let c = Value::Float(3.0);
+        let c = Value::new(3.0);
         let d = Value::Float(4.0);
-        let e = Value::Boolean(true);
+        let e = Value::new(true);
         let f = Value::Boolean(false);
-        let g = Value::String(String::from("Hello"));
+        let g = Value::new(String::from("Hello"));
         let h = Value::String(String::from("World"));
-        let i = Value::Compound(CompoundValue::new(1));
+        let i = Value::new(CompoundValue::new(1));
         let j = Value::Compound(CompoundValue::new("hello"));
         // Comparing Value::Integer tests
         compare_value(&a, &b);
