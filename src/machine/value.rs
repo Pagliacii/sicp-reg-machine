@@ -61,13 +61,8 @@ impl Value {
             Self::Float(*(&val as &dyn Any).downcast_ref::<f64>().unwrap())
         } else if TypeId::of::<bool>() == type_id {
             Self::Boolean(*(&val as &dyn Any).downcast_ref::<bool>().unwrap())
-        } else if TypeId::of::<String>() == type_id {
-            Self::String(
-                (&val as &dyn Any)
-                    .downcast_ref::<String>()
-                    .unwrap()
-                    .to_owned(),
-            )
+        } else if TypeId::of::<String>() == type_id || TypeId::of::<&str>() == type_id {
+            Self::String(val.to_string())
         } else {
             Self::Compound(CompoundValue::new(val))
         }
@@ -259,5 +254,28 @@ mod value_mod_tests {
         assert_ne!(c1, c2);
         assert_ne!(c2, c3);
         assert_eq!(c1, c4);
+    }
+
+    #[test]
+    fn test_from_value_trait() {
+        let i = Value::new(1);
+        let ii = i32::from_value(i);
+        assert!(ii.is_ok());
+        assert_eq!(1, ii.unwrap());
+
+        let f = Value::new(1.0);
+        let ff = f64::from_value(f);
+        assert!(ff.is_ok());
+        assert_eq!(1.0, ff.unwrap());
+
+        let b = Value::new(false);
+        let bb = bool::from_value(b);
+        assert!(bb.is_ok());
+        assert_eq!(false, bb.unwrap());
+
+        let s = Value::new("hello");
+        let ss = String::from_value(s);
+        assert!(ss.is_ok());
+        assert_eq!("hello".to_string(), ss.unwrap());
     }
 }
