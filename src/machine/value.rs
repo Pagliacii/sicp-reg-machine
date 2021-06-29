@@ -37,6 +37,7 @@ impl From<Value> for String {
             Value::Float(f) => format!("Float ({})", f),
             Value::Integer(i) => format!("Integer ({})", i),
             Value::String(s) => format!("String ({})", s),
+            Value::Compound(c) => c.to_string(),
         }
     }
 }
@@ -111,6 +112,8 @@ pub struct CompoundValue {
     inner: BaseType,
     /// type name of the actual value
     inner_type_name: &'static str,
+    /// string format for comparing
+    inner_string_format: String,
 }
 
 impl fmt::Debug for CompoundValue {
@@ -119,20 +122,28 @@ impl fmt::Debug for CompoundValue {
     }
 }
 
+impl fmt::Display for CompoundValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CompoundValue({})", self.inner_string_format)
+    }
+}
+
 impl PartialEq for CompoundValue {
     fn eq(&self, other: &Self) -> bool {
-        self.type_id() == other.type_id()
+        self.type_id() == other.type_id() && self.to_string() == other.to_string()
     }
 }
 
 impl CompoundValue {
     pub fn new<T>(result: T) -> Self
     where
-        T: Any + Send + Sync,
+        T: Any + Send + Sync + fmt::Display,
     {
+        let string_format = result.to_string();
         Self {
             inner: Arc::new(result),
             inner_type_name: type_name::<T>(),
+            inner_string_format: string_format,
         }
     }
 
@@ -187,5 +198,16 @@ mod value_mod_tests {
         // Comparing Value::Integer and Value::Float
         assert_ne!(a, c);
         assert_ne!(d, b);
+    }
+
+    #[test]
+    fn test_compound_value_compare() {
+        let c1 = CompoundValue::new(1);
+        let c2 = CompoundValue::new("hello");
+        let c3 = CompoundValue::new("hello".to_string());
+        let c4 = CompoundValue::new(1);
+        assert_ne!(c1, c2);
+        assert_ne!(c2, c3);
+        assert_eq!(c1, c4);
     }
 }
