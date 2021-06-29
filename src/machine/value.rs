@@ -25,6 +25,7 @@ impl PartialEq for Value {
             (Value::Float(f1), Value::Float(f2)) => f1 == f2,
             (Value::Integer(i1), Value::Integer(i2)) => i1 == i2,
             (Value::String(s1), Value::String(s2)) => s1 == s2,
+            (Value::Compound(c1), Value::Compound(c2)) => c1 == c2,
             _ => false,
         }
     }
@@ -187,6 +188,8 @@ mod value_mod_tests {
         let f = Value::Boolean(false);
         let g = Value::String(String::from("Hello"));
         let h = Value::String(String::from("World"));
+        let i = Value::Compound(CompoundValue::new(1));
+        let j = Value::Compound(CompoundValue::new("hello"));
         // Comparing Value::Integer tests
         compare_value(&a, &b);
         // Comparing Value::Float tests
@@ -195,6 +198,8 @@ mod value_mod_tests {
         compare_value(&e, &f);
         // Comparing Value::String tests
         compare_value(&g, &h);
+        // Comparing Value::Compound tests
+        compare_value(&i, &j);
         // Comparing Value::Integer and Value::Float
         assert_ne!(a, c);
         assert_ne!(d, b);
