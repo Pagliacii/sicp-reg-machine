@@ -155,6 +155,16 @@ impl PartialEq for CompoundValue {
     }
 }
 
+impl FromValue for CompoundValue {
+    fn from_value(val: Value) -> Result<Self> {
+        if let Value::Compound(v) = val {
+            Ok(v)
+        } else {
+            Err(TypeError::expected("CompoundValue").got(val))?
+        }
+    }
+}
+
 impl CompoundValue {
     pub fn new<T>(result: T) -> Self
     where
@@ -277,5 +287,19 @@ mod value_mod_tests {
         let ss = String::from_value(s);
         assert!(ss.is_ok());
         assert_eq!("hello".to_string(), ss.unwrap());
+    }
+
+    #[test]
+    fn test_from_value_for_compound_value() {
+        struct Foo {}
+        impl fmt::Display for Foo {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "Foo {{}}")
+            }
+        }
+        let c = Value::new(Foo {});
+        let cc = CompoundValue::from_value(c);
+        assert!(cc.is_ok());
+        assert_eq!(CompoundValue::new(Foo {}), cc.unwrap());
     }
 }
