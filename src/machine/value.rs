@@ -206,6 +206,26 @@ mod value_mod_tests {
     }
 
     #[test]
+    fn test_compound_value() {
+        let v = CompoundValue::new(1);
+        let actual = v.value().downcast::<i32>();
+        assert!(actual.is_ok());
+        assert_eq!(Arc::new(1), actual.unwrap());
+    }
+
+    #[test]
+    fn test_compound_value_downcast() {
+        let v = CompoundValue::new(1);
+        let actual = v.downcast_ref::<i32>();
+        assert!(actual.is_ok());
+        assert_eq!(&1, actual.unwrap());
+        assert_eq!(
+            Err(TypeError::expected("i32").got("f32").into()),
+            v.downcast_ref::<f32>(),
+        );
+    }
+
+    #[test]
     fn test_compound_value_compare() {
         let c1 = CompoundValue::new(1);
         let c2 = CompoundValue::new("hello");
