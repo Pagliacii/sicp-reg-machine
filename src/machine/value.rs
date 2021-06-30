@@ -52,7 +52,7 @@ impl fmt::Display for Value {
 impl Value {
     pub fn new<T>(val: T) -> Self
     where
-        T: Any + Send + Sync + fmt::Display,
+        T: Any + Send + Sync + fmt::Debug,
     {
         let type_id = val.type_id();
         if TypeId::of::<i32>() == type_id {
@@ -61,8 +61,13 @@ impl Value {
             Self::Float(*(&val as &dyn Any).downcast_ref::<f64>().unwrap())
         } else if TypeId::of::<bool>() == type_id {
             Self::Boolean(*(&val as &dyn Any).downcast_ref::<bool>().unwrap())
-        } else if TypeId::of::<String>() == type_id || TypeId::of::<&str>() == type_id {
-            Self::String(val.to_string())
+        } else if TypeId::of::<String>() == type_id {
+            Self::String(
+                (&val as &dyn Any)
+                    .downcast_ref::<String>()
+                    .unwrap()
+                    .to_owned(),
+            )
         } else {
             Self::Compound(CompoundValue::new(val))
         }
@@ -168,9 +173,9 @@ impl FromValue for CompoundValue {
 impl CompoundValue {
     pub fn new<T>(result: T) -> Self
     where
-        T: Any + Send + Sync + fmt::Display,
+        T: Any + Send + Sync + fmt::Debug,
     {
-        let string_format = result.to_string();
+        let string_format = format!("{:?}", result);
         Self {
             inner: Arc::new(result),
             inner_type_name: type_name::<T>(),
@@ -283,7 +288,7 @@ mod value_mod_tests {
         assert!(bb.is_ok());
         assert_eq!(false, bb.unwrap());
 
-        let s = Value::new("hello");
+        let s = Value::new("hello".to_owned());
         let ss = String::from_value(s);
         assert!(ss.is_ok());
         assert_eq!("hello".to_string(), ss.unwrap());
@@ -291,12 +296,8 @@ mod value_mod_tests {
 
     #[test]
     fn test_from_value_for_compound_value() {
+        #[derive(Debug)]
         struct Foo {}
-        impl fmt::Display for Foo {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(f, "Foo {{}}")
-            }
-        }
         let c = Value::new(Foo {});
         let cc = CompoundValue::from_value(c);
         assert!(cc.is_ok());

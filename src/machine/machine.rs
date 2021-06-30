@@ -1,15 +1,14 @@
 //! The register machine
 
-use std::any::Any;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::fmt;
 
 use super::errors::{OperationError, RegisterError, Result};
 use super::function::Function;
 use super::operation::Operation;
 use super::register::Register;
 use super::stack::Stack;
-use super::value::FromValueList;
+use super::value::{FromValueList, Value};
 use super::BaseType;
 
 pub struct Machine {
@@ -41,7 +40,7 @@ impl Machine {
     where
         F: Function<Args, Result = R>,
         Args: FromValueList,
-        R: Send + Sync + 'static,
+        R: Send + Sync + fmt::Debug + 'static,
         S: Into<String>,
     {
         self.the_ops.insert(name.into(), Operation::new(f));
@@ -71,19 +70,30 @@ impl Machine {
     }
 
     fn total_operations(&self) -> usize {
-        self.the_ops.len()
+        self.the_ops.len() + 2
     }
 
     fn total_instructions(&self) -> usize {
         self.the_inst_seq.len()
     }
 
-    fn get_operation<S: Into<String>>(&self, name: S) -> Result<&Operation> {
+    fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> Result<Value> {
         let name = name.into();
-        if let Some(op) = self.the_ops.get(&name) {
-            Ok(op)
-        } else {
-            Err(OperationError::NotFound(name))?
+        let res = Ok(Value::new("done".to_string()));
+        match name.as_str() {
+            "initialize-stack" => {
+                self.initialize_stack();
+                res
+            }
+            "print-stack-statistics" => {
+                self.print_stack_statistics();
+                res
+            }
+            _ => self
+                .the_ops
+                .get(&name)
+                .map(|op| Value::new(op.perform(args)))
+                .ok_or(OperationError::NotFound(name).into()),
         }
     }
 
@@ -96,28 +106,11 @@ impl Machine {
     }
 }
 
-pub fn make_new_machine() -> Result<Arc<Mutex<Machine>>> {
+pub fn make_new_machine() -> Result<Machine> {
     let mut machine = Machine::new();
     machine.allocate_register("pc")?;
     machine.allocate_register("flag")?;
-    let m = Arc::new(Mutex::new(machine));
-    m.lock().unwrap().install_operation("initialize-stack", {
-        let m = Arc::clone(&m);
-        move || {
-            let mut m = m.lock().unwrap();
-            m.initialize_stack();
-        }
-    });
-    m.lock()
-        .unwrap()
-        .install_operation("print-stack-statistics", {
-            let m = Arc::clone(&m);
-            move || {
-                let m = m.lock().unwrap();
-                m.print_stack_statistics();
-            }
-        });
-    Ok(m)
+    Ok(machine)
 }
 
 #[cfg(test)]
@@ -127,8 +120,7 @@ mod machine_tests {
 
     #[test]
     fn test_make_new_machine() {
-        let machine = make_new_machine().unwrap();
-        let m = machine.lock().unwrap();
+        let m = make_new_machine().unwrap();
         assert!(m.stack.is_empty());
         assert_eq!(m.total_registers(), 2);
         assert_eq!(m.total_operations(), 2);
@@ -137,12 +129,12 @@ mod machine_tests {
 
     #[test]
     fn test_lookup_register() {
-        let machine = make_new_machine().unwrap();
-        let m = machine.lock().unwrap();
-        let expected = Arc::new("*unassigned*".to_string());
+        let m = make_new_machine().unwrap();
+        let expected = "*unassigned*".to_string();
         let actual = m.lookup_register("pc");
         assert!(actual.is_ok());
-        assert_eq!(expected, actual.unwrap().downcast::<String>().unwrap());
+        let actual = actual.unwrap();
+        assert_eq!(Some(&expected), actual.as_ref().downcast_ref::<String>());
 
         match m.lookup_register("not-found") {
             Err(e) => assert_eq!(
@@ -155,8 +147,7 @@ mod machine_tests {
 
     #[test]
     fn test_allocate_register() {
-        let machine = make_new_machine().unwrap();
-        let mut m = machine.lock().unwrap();
+        let mut m = make_new_machine().unwrap();
         let res = m.allocate_register("test");
         assert_eq!(res, Ok("register-allocated"));
 
@@ -171,14 +162,14 @@ mod machine_tests {
 
     #[test]
     fn test_builtin_operations() {
-        let machine = make_new_machine().unwrap();
-        let m = machine.lock().unwrap();
-        let print_stack_op = m.get_operation("print-stack-statistics").unwrap();
-        let res = print_stack_op.perform(vec![]);
+        let expected = Value::new("done".to_string());
+        let mut m = make_new_machine().unwrap();
+        let res = m.call_operation("print-stack-statistics", vec![]);
         assert!(res.is_ok());
-        let initialize = m.get_operation("initialize-stack").unwrap();
-        let res = initialize.perform(vec![]);
+        assert_eq!(expected, res.unwrap());
+
+        let res = m.call_operation("initialize-stack", vec![]);
         assert!(res.is_ok());
-        assert!(m.stack.is_empty());
+        assert_eq!(expected, res.unwrap());
     }
 }
