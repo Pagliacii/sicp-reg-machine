@@ -1,6 +1,5 @@
 //! The register machine
 
-use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -118,14 +117,24 @@ impl Machine {
 
     pub fn execute(&mut self) -> Result<&'static str> {
         if let Ok(insts_string) = self.pc.get().downcast::<String>() {
-            let insts: Vec<&str> = insts_string.as_str().split("\n").collect();
+            let insts: Vec<&str> = insts_string
+                .as_str()
+                .split("\n")
+                .filter(|s| !s.is_empty())
+                .collect();
             if insts.is_empty() || insts[0] == "*unassigned*" {
                 return Ok("done");
             }
+            // TODO: Execute instruction actually
             Ok("TODO")
         } else {
             Err(MachineError::UnrecognizedInsts)
         }
+    }
+
+    pub fn start(&mut self) -> Result<&'static str> {
+        self.pc.set(self.the_inst_seq.join("\n"));
+        self.execute()
     }
 
     pub fn install_instructions<S: Into<String>>(&mut self, insts: Vec<S>) {
@@ -221,5 +230,12 @@ mod machine_tests {
         assert_eq!(4, m.the_inst_seq.len());
         m.install_instructions(vec!["test5"]);
         assert_eq!(1, m.the_inst_seq.len());
+    }
+
+    #[test]
+    fn test_start_method() {
+        let mut m = Machine::new();
+        let res = m.start();
+        assert_eq!(Ok("done"), res);
     }
 }
