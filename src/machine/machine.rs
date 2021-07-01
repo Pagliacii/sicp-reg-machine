@@ -1,5 +1,6 @@
 //! The register machine
 
+use std::borrow::Borrow;
 use std::collections::HashMap;
 use std::fmt;
 
@@ -126,6 +127,14 @@ impl Machine {
             Err(MachineError::UnrecognizedInsts)
         }
     }
+
+    pub fn install_instructions<S: Into<String>>(&mut self, insts: Vec<S>) {
+        self.the_inst_seq = insts.into_iter().map(|s| s.into()).collect();
+    }
+
+    pub fn install_instruction<S: Into<String>>(&mut self, inst: S) {
+        self.the_inst_seq.push(inst.into());
+    }
 }
 
 #[cfg(test)]
@@ -201,5 +210,16 @@ mod machine_tests {
         m.pc.set("Some instructions".to_string());
         let res = m.execute();
         assert_eq!(Ok("TODO"), res);
+    }
+
+    #[test]
+    fn test_install_instructions() {
+        let mut m = Machine::new();
+        m.install_instructions(vec!["test1", "test2", "test3"]);
+        assert_eq!(3, m.the_inst_seq.len());
+        m.install_instruction("test4");
+        assert_eq!(4, m.the_inst_seq.len());
+        m.install_instructions(vec!["test5"]);
+        assert_eq!(1, m.the_inst_seq.len());
     }
 }
