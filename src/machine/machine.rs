@@ -60,7 +60,7 @@ impl Machine {
         }
     }
 
-    fn lookup_register<S: Into<String>>(&self, name: S) -> Result<BaseType> {
+    pub fn get_register<S: Into<String>>(&self, name: S) -> Result<BaseType> {
         let name = name.into();
         match name.as_str() {
             "pc" => Ok(self.pc.get()),
@@ -161,15 +161,15 @@ mod machine_tests {
     }
 
     #[test]
-    fn test_lookup_register() {
+    fn test_get_register() {
         let m = Machine::new();
         let expected = "*unassigned*".to_string();
-        let actual = m.lookup_register("pc");
+        let actual = m.get_register("pc");
         assert!(actual.is_ok());
         let actual = actual.unwrap();
         assert_eq!(Some(&expected), actual.as_ref().downcast_ref::<String>());
 
-        match m.lookup_register("not-found") {
+        match m.get_register("not-found") {
             Err(e) => assert_eq!(
                 MachineError::RegisterError(RegisterError::LookupFailure("not-found".to_string())),
                 e,
