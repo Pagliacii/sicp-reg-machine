@@ -13,6 +13,10 @@ pub enum MachineError {
     RegisterError(#[from] RegisterError),
     #[error("Failed to convert a vector to a tuple.")]
     ToTupleError,
+    #[error("Unknown instruction: {0}")]
+    UnknownInstruction(String),
+    #[error("Unrecognized instructions.")]
+    UnrecognizedInsts,
 }
 
 pub type Result<T> = std::result::Result<T, MachineError>;
@@ -24,6 +28,8 @@ impl PartialEq for MachineError {
             (Self::TypeError(t1), Self::TypeError(t2)) => t1 == t2,
             (Self::RegisterError(r1), Self::RegisterError(r2)) => r1 == r2,
             (Self::ToTupleError, Self::ToTupleError) => true,
+            (Self::UnknownInstruction(inst1), Self::UnknownInstruction(inst2)) => inst1 == inst2,
+            (Self::UnrecognizedInsts, Self::UnrecognizedInsts) => true,
             _ => false,
         }
     }

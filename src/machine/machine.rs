@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use super::errors::{OperationError, RegisterError, Result};
+use super::errors::{MachineError, OperationError, RegisterError, Result};
 use super::function::Function;
 use super::operation::Operation;
 use super::register::Register;
@@ -116,7 +116,15 @@ impl Machine {
     }
 
     pub fn execute(&mut self) -> Result<&'static str> {
-        Ok("done")
+        if let Ok(insts_string) = self.pc.get().downcast::<String>() {
+            let insts: Vec<&str> = insts_string.as_str().split("\n").collect();
+            if insts.is_empty() || insts[0] == "*unassigned*" {
+                return Ok("done");
+            }
+            Ok("TODO")
+        } else {
+            Err(MachineError::UnrecognizedInsts)
+        }
     }
 }
 
@@ -178,5 +186,20 @@ mod machine_tests {
         let res = m.call_operation("initialize-stack", vec![]);
         assert!(res.is_ok());
         assert_eq!(expected, res.unwrap());
+    }
+
+    #[test]
+    fn test_execute_instructions() {
+        let mut m = Machine::new();
+        let res = m.execute();
+        assert_eq!(Ok("done"), res);
+
+        m.pc.set(1);
+        let res = m.execute();
+        assert_eq!(Err(MachineError::UnrecognizedInsts), res);
+
+        m.pc.set("Some instructions".to_string());
+        let res = m.execute();
+        assert_eq!(Ok("TODO"), res);
     }
 }
