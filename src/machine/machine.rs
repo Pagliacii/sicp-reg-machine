@@ -21,7 +21,7 @@ pub struct Machine {
 }
 
 impl Machine {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             pc: Register::new(),
             flag: Register::new(),
@@ -50,7 +50,15 @@ impl Machine {
         self.the_ops.insert(name.into(), Operation::new(f));
     }
 
-    fn allocate_register<S: Into<String>>(&mut self, name: S) -> Result<&'static str> {
+    pub fn install_operations(&mut self, operations: &HashMap<&str, Operation>) {
+        self.the_ops.extend(
+            operations
+                .into_iter()
+                .map(|(&name, op)| (name.to_string(), op.clone())),
+        );
+    }
+
+    pub fn allocate_register<S: Into<String>>(&mut self, name: S) -> Result<&'static str> {
         let name = name.into();
         if name.eq("pc") && name.eq("flag") && self.register_table.contains_key(&name) {
             Err(RegisterError::AllocateFailure(name))?
@@ -99,11 +107,10 @@ impl Machine {
                 self.print_stack_statistics();
                 res
             }
-            _ => self
-                .the_ops
-                .get(&name)
-                .map(|op| Value::new(op.perform(args)))
-                .ok_or(OperationError::NotFound(name).into()),
+            _ => self.the_ops.get(&name).map_or_else(
+                || Err(OperationError::NotFound(name).into()),
+                |op| op.perform(args),
+            ),
         }
     }
 
@@ -149,7 +156,6 @@ impl Machine {
 #[cfg(test)]
 mod machine_tests {
     use super::*;
-    use crate::machine::errors::MachineError;
 
     #[test]
     fn test_make_new_machine() {
@@ -204,6 +210,40 @@ mod machine_tests {
         let res = m.call_operation("initialize-stack", vec![]);
         assert!(res.is_ok());
         assert_eq!(expected, res.unwrap());
+    }
+
+    #[test]
+    fn test_install_operation() {
+        let mut m = Machine::new();
+        m.install_operation("add", |a: i32, b: i32| a + b);
+        let res = m.call_operation("add", vec![Value::new(1), Value::new(1)]);
+        assert!(res.is_ok());
+        assert_eq!(Ok(Value::new(2)), res);
+    }
+
+    #[test]
+    fn test_install_operations() {
+        let mut operations: HashMap<&str, Operation> = HashMap::new();
+        operations.insert("add", Operation::new(|a: i32, b: i32| a + b));
+        operations.insert("sub", Operation::new(|a: i32, b: i32| a - b));
+        operations.insert("mut", Operation::new(|a: i32, b: i32| a * b));
+        operations.insert("div", Operation::new(|a: i32, b: i32| a / b));
+
+        let mut m = Machine::new();
+        m.install_operations(&operations);
+
+        let res = m.call_operation("add", vec![Value::new(1), Value::new(1)]);
+        assert!(res.is_ok());
+        assert_eq!(Ok(Value::new(2)), res);
+        let res = m.call_operation("sub", vec![Value::new(1), Value::new(1)]);
+        assert!(res.is_ok());
+        assert_eq!(Ok(Value::new(0)), res);
+        let res = m.call_operation("mut", vec![Value::new(1), Value::new(1)]);
+        assert!(res.is_ok());
+        assert_eq!(Ok(Value::new(1)), res);
+        let res = m.call_operation("div", vec![Value::new(1), Value::new(1)]);
+        assert!(res.is_ok());
+        assert_eq!(Ok(Value::new(1)), res);
     }
 
     #[test]
