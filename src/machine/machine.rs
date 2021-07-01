@@ -12,6 +12,8 @@ use super::value::{FromValueList, Value};
 use super::BaseType;
 
 pub struct Machine {
+    pc: Register,
+    flag: Register,
     stack: Stack,
     the_inst_seq: Vec<String>,
     the_ops: HashMap<String, Operation>,
@@ -21,6 +23,8 @@ pub struct Machine {
 impl Machine {
     fn new() -> Self {
         Self {
+            pc: Register::new(),
+            flag: Register::new(),
             stack: Stack::new(),
             the_inst_seq: Vec::new(),
             the_ops: HashMap::new(),
@@ -48,7 +52,7 @@ impl Machine {
 
     fn allocate_register<S: Into<String>>(&mut self, name: S) -> Result<&'static str> {
         let name = name.into();
-        if self.register_table.contains_key(&name) {
+        if name.eq("pc") && name.eq("flag") && self.register_table.contains_key(&name) {
             Err(RegisterError::AllocateFailure(name))?
         } else {
             self.register_table.insert(name, Register::new());
@@ -58,15 +62,21 @@ impl Machine {
 
     fn lookup_register<S: Into<String>>(&self, name: S) -> Result<BaseType> {
         let name = name.into();
-        if let Some(v) = self.register_table.get(&name) {
-            Ok(v.get())
-        } else {
-            Err(RegisterError::LookupFailure(name))?
+        match name.as_str() {
+            "pc" => Ok(self.pc.get()),
+            "flag" => Ok(self.flag.get()),
+            _ => {
+                if let Some(v) = self.register_table.get(&name) {
+                    Ok(v.get())
+                } else {
+                    Err(RegisterError::LookupFailure(name))?
+                }
+            }
         }
     }
 
     fn total_registers(&self) -> usize {
-        self.register_table.len()
+        self.register_table.len() + 2
     }
 
     fn total_operations(&self) -> usize {
@@ -104,13 +114,10 @@ impl Machine {
     pub fn operations(&self) -> &HashMap<String, Operation> {
         &self.the_ops
     }
-}
 
-pub fn make_new_machine() -> Result<Machine> {
-    let mut machine = Machine::new();
-    machine.allocate_register("pc")?;
-    machine.allocate_register("flag")?;
-    Ok(machine)
+    pub fn execute(&mut self) -> Result<&'static str> {
+        Ok("done")
+    }
 }
 
 #[cfg(test)]
@@ -120,7 +127,7 @@ mod machine_tests {
 
     #[test]
     fn test_make_new_machine() {
-        let m = make_new_machine().unwrap();
+        let m = Machine::new();
         assert!(m.stack.is_empty());
         assert_eq!(m.total_registers(), 2);
         assert_eq!(m.total_operations(), 2);
@@ -129,7 +136,7 @@ mod machine_tests {
 
     #[test]
     fn test_lookup_register() {
-        let m = make_new_machine().unwrap();
+        let m = Machine::new();
         let expected = "*unassigned*".to_string();
         let actual = m.lookup_register("pc");
         assert!(actual.is_ok());
@@ -147,7 +154,7 @@ mod machine_tests {
 
     #[test]
     fn test_allocate_register() {
-        let mut m = make_new_machine().unwrap();
+        let mut m = Machine::new();
         let res = m.allocate_register("test");
         assert_eq!(res, Ok("register-allocated"));
 
@@ -163,7 +170,7 @@ mod machine_tests {
     #[test]
     fn test_builtin_operations() {
         let expected = Value::new("done".to_string());
-        let mut m = make_new_machine().unwrap();
+        let mut m = Machine::new();
         let res = m.call_operation("print-stack-statistics", vec![]);
         assert!(res.is_ok());
         assert_eq!(expected, res.unwrap());
