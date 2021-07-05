@@ -1,15 +1,17 @@
 //! The register machine
 
 use std::collections::HashMap;
-use std::fmt;
+use std::fmt::Debug;
 
-use super::errors::{MachineError, OperationError, RegisterError, Result};
-use super::function::Function;
-use super::operation::Operation;
-use super::register::Register;
-use super::stack::Stack;
-use super::value::{FromValueList, Value};
-use super::BaseType;
+use super::{
+    errors::{MachineError, OperationError, RegisterError, Result},
+    function::Function,
+    operation::Operation,
+    register::Register,
+    stack::Stack,
+    value::{FromValueList, Value},
+    BaseType,
+};
 
 pub struct Machine {
     pc: Register,
@@ -44,7 +46,7 @@ impl Machine {
     where
         F: Function<Args, Result = R>,
         Args: FromValueList,
-        R: Send + Sync + fmt::Debug + 'static,
+        R: Debug + PartialEq + Send + Sync + 'static,
         S: Into<String>,
     {
         self.the_ops.insert(name.into(), Operation::new(f));

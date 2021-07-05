@@ -1,7 +1,7 @@
 //! Module to help with passing around functions of arbitrary parameters
 //! ref: https://github.com/osohq/oso
 
-use std::fmt;
+use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::errors::Result;
@@ -17,7 +17,7 @@ impl Operation {
     where
         Args: FromValueList,
         F: Function<Args>,
-        F::Result: Send + Sync + fmt::Debug + 'static,
+        F::Result: Debug + PartialEq + Send + Sync + 'static,
     {
         Self(Arc::new(move |args: Vec<Value>| {
             Args::from_value_list(&args).map(|args| Value::new(f.invoke(args)))

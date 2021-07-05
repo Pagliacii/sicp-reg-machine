@@ -1,12 +1,16 @@
-use std::any::{type_name, Any, TypeId};
-use std::convert::{From, TryFrom};
-use std::fmt;
-use std::sync::Arc;
+use std::{
+    any::{type_name, Any, TypeId},
+    convert::{From, TryFrom},
+    fmt::{self, Debug, Display, Formatter},
+    sync::Arc,
+};
 
 use impl_trait_for_tuples::*;
 
-use super::errors::{MachineError, Result, TypeError};
-use super::BaseType;
+use super::{
+    errors::{MachineError, Result, TypeError},
+    BaseType,
+};
 
 /// An enum of the possible value types that can be sent to an operation.
 #[derive(Clone, Debug)]
@@ -43,8 +47,8 @@ impl From<Value> for String {
     }
 }
 
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Display for Value {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.to_string())
     }
 }
@@ -52,7 +56,7 @@ impl fmt::Display for Value {
 impl Value {
     pub fn new<T>(val: T) -> Self
     where
-        T: Any + Send + Sync + fmt::Debug,
+        T: Any + Debug + PartialEq + Send + Sync,
     {
         let type_id = val.type_id();
         if TypeId::of::<i32>() == type_id {
@@ -136,27 +140,24 @@ impl FromValueList for Tuple {
 pub struct CompoundValue {
     /// actual value
     inner: BaseType,
-    /// type name of the actual value
-    inner_type_name: &'static str,
-    /// string format for comparing
-    inner_string_format: String,
+    vtable: VTable,
 }
 
-impl fmt::Debug for CompoundValue {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CompoundValue<{}>", self.inner_type_name)
+impl Debug for CompoundValue {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "CompoundValue<{}>", self.vtable.type_name)
     }
 }
 
-impl fmt::Display for CompoundValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CompoundValue({})", self.inner_string_format)
+impl Display for CompoundValue {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "CompoundValue({:?})", (self.vtable.debug)(&*self.inner))
     }
 }
 
 impl PartialEq for CompoundValue {
     fn eq(&self, other: &Self) -> bool {
-        self.type_id() == other.type_id() && self.to_string() == other.to_string()
+        (self.vtable.partial_eq)(&*self.inner, &*other.inner)
     }
 }
 
@@ -173,18 +174,12 @@ impl FromValue for CompoundValue {
 impl CompoundValue {
     pub fn new<T>(result: T) -> Self
     where
-        T: Any + Send + Sync + fmt::Debug,
+        T: Any + Debug + PartialEq + Send + Sync,
     {
-        let string_format = format!("{:?}", result);
         Self {
             inner: Arc::new(result),
-            inner_type_name: type_name::<T>(),
-            inner_string_format: string_format,
+            vtable: VTable::for_type::<T>(),
         }
-    }
-
-    pub fn type_id(&self) -> TypeId {
-        self.inner.as_ref().type_id()
     }
 
     pub fn value(&self) -> BaseType {
@@ -196,10 +191,37 @@ impl CompoundValue {
         T: Any + Send + Sync,
     {
         self.inner.as_ref().downcast_ref().ok_or_else(|| {
-            TypeError::expected(self.inner_type_name)
+            TypeError::expected(self.vtable.type_name)
                 .got(type_name::<T>())
                 .into()
         })
+    }
+}
+
+#[derive(Copy, Clone)]
+struct VTable {
+    type_id: TypeId,
+    type_name: &'static str,
+    debug: fn(&dyn Any) -> &dyn Debug,
+    partial_eq: fn(&dyn Any, &dyn Any) -> bool,
+}
+
+impl VTable {
+    fn for_type<T>() -> Self
+    where
+        T: Any + Debug + PartialEq + 'static,
+    {
+        Self {
+            type_id: TypeId::of::<T>(),
+            type_name: type_name::<T>(),
+            debug: |value: &dyn Any| -> &dyn Debug { value.downcast_ref::<T>().unwrap() },
+            partial_eq: |left: &dyn Any, right: &dyn Any| -> bool {
+                match (left.downcast_ref::<T>(), right.downcast_ref::<T>()) {
+                    (Some(l), Some(r)) => l == r,
+                    _ => false,
+                }
+            },
+        }
     }
 }
 
@@ -296,7 +318,7 @@ mod value_mod_tests {
 
     #[test]
     fn test_from_value_for_compound_value() {
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq)]
         struct Foo {}
         let c = Value::new(Foo {});
         let cc = CompoundValue::from_value(c);
