@@ -9,9 +9,9 @@ The machine details could be found at the SICP chapter 5. See [here](https://sar
 (reg <register-name>)
 ; a constant value
 (const <constant-value>)
-; a controll label
+; a control label
 (label <label-name>)
-; test a condition and jump to the controll label
+; test a condition and jump to the control label
 (test (op <operation-name>) <input_1> ... <input_n>)
 (branch (label <label-name>)) ; only jump if the preceded test passes
 ; go to label immediately
