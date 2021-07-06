@@ -13,6 +13,8 @@ pub enum MachineError {
     RegisterError(#[from] RegisterError),
     #[error("Failed to convert a vector to a tuple.")]
     ToTupleError,
+    #[error("Unknown label: {0}")]
+    UnknownLabel(String),
     #[error("Unknown instruction: {0}")]
     UnknownInstruction(String),
     #[error("Unrecognized instructions.")]

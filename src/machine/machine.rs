@@ -12,14 +12,14 @@ use super::{
     stack::Stack,
     value::{CompoundValue, FromValueList, Value},
 };
-use crate::assemble::AssembledInsts;
 use crate::parser::RMLNode;
 
 pub struct Machine {
     pc: Register,
     flag: Register,
     stack: Stack,
-    the_inst_seq: AssembledInsts,
+    the_inst_seq: Vec<RMLNode>,
+    the_labels: HashMap<String, Vec<RMLNode>>,
     the_ops: HashMap<String, Operation>,
     register_table: HashMap<String, Register>,
 }
@@ -30,7 +30,8 @@ impl Machine {
             pc: Register::new(),
             flag: Register::new(),
             stack: Stack::new(),
-            the_inst_seq: (Vec::new(), HashMap::new()),
+            the_inst_seq: Vec::new(),
+            the_labels: HashMap::new(),
             the_ops: HashMap::new(),
             register_table: HashMap::new(),
         }
@@ -107,8 +108,12 @@ impl Machine {
         &self.the_ops
     }
 
-    pub fn install_instructions(&mut self, insts: AssembledInsts) {
+    pub fn install_instructions(&mut self, insts: Vec<RMLNode>) {
         self.the_inst_seq = insts;
+    }
+
+    pub fn install_labels(&mut self, labels: HashMap<String, Vec<RMLNode>>) {
+        self.the_labels = labels;
     }
 
     pub fn start(&mut self) -> MResult<&'static str> {
@@ -118,13 +123,12 @@ impl Machine {
 
     pub fn execute(&mut self) -> MResult<&'static str> {
         if let Value::Pointer(pointer) = *self.pc.get() {
-            let insts = &self.the_inst_seq.0;
-            if pointer == insts.len() {
+            if pointer == self.the_inst_seq.len() {
                 return Ok("Done");
-            } else if pointer > insts.len() {
+            } else if pointer > self.the_inst_seq.len() {
                 return Err(MachineError::NoMoreInsts);
             }
-            match insts[pointer].clone() {
+            match self.the_inst_seq[pointer].clone() {
                 RMLNode::Assignment(reg_name, op) => self.execute_assignment(reg_name, op),
                 RMLNode::Branch(label) => self.execute_branch(label),
                 RMLNode::GotoLabel(label) => self.execute_goto(label),
@@ -223,12 +227,24 @@ impl Machine {
 
     fn execute_branch(&mut self, label: Arc<RMLNode>) -> MResult<&'static str> {
         let label_name = self.extract_label_name(label)?;
-        unimplemented!()
+        if let Some(insts) = self.the_labels.get(&label_name) {
+            if let Value::Boolean(true) = self.flag.get() {
+                self.the_inst_seq = insts.clone();
+            }
+            Ok("Done")
+        } else {
+            Err(MachineError::UnknownLabel(label_name))
+        }
     }
 
     fn execute_goto(&mut self, label: Arc<RMLNode>) -> MResult<&'static str> {
         let label_name = self.extract_label_name(label)?;
-        unimplemented!()
+        if let Some(insts) = self.the_labels.get(&label_name) {
+            self.the_inst_seq = insts.clone();
+            Ok("Done")
+        } else {
+            Err(MachineError::UnknownLabel(label_name))
+        }
     }
 
     fn execute_perform(&self, operation: Arc<RMLNode>) -> MResult<&'static str> {

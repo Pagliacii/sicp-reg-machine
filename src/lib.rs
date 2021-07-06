@@ -21,8 +21,9 @@ pub fn make_machine<F, Args, R>(
         machine.allocate_register(reg_name)?;
     }
     machine.install_operations(operations);
-    machine.install_instructions(
-        assemble(controller_text).map_err(|msg: String| MachineError::UnableAssemble(msg))?,
-    );
+    let (insts, labels) =
+        assemble(controller_text).map_err(|msg: String| MachineError::UnableAssemble(msg))?;
+    machine.install_instructions(insts);
+    machine.install_labels(labels);
     Ok(machine)
 }

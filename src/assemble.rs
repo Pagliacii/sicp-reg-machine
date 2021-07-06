@@ -2,10 +2,10 @@ use std::collections::HashMap;
 
 use crate::parser::{parse, RMLNode};
 
-pub type AssembledInsts = (Vec<RMLNode>, HashMap<String, Vec<RMLNode>>);
-
 /// The assemble procedure is the main entry to the assembler.
-pub fn assemble(controller_text: &str) -> Result<AssembledInsts, String> {
+pub fn assemble(
+    controller_text: &str,
+) -> Result<(Vec<RMLNode>, HashMap<String, Vec<RMLNode>>), String> {
     let mut labels: HashMap<String, Vec<RMLNode>> = HashMap::new();
     let mut insts: Vec<RMLNode> = vec![];
     let parse_result = parse(controller_text).unwrap();
