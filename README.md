@@ -1,6 +1,6 @@
 # Register Machine
 
-The machine details could be found at the SICP chapter 5. See [here](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1).
+The machine details could be found in the SICP chapter 5. See [here](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1).
 
 ## Exercise 5.51
 
