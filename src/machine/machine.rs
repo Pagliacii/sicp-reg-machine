@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::{
-    errors::{MResult, MachineError, OperationError, RegisterError},
+    errors::{MResult, MachineError, OperationError, RegisterError, TypeError},
     function::Function,
     operation::Operation,
     register::Register,
@@ -186,8 +186,8 @@ impl Machine {
     ) -> MResult<&'static str> {
         match &*operation {
             RMLNode::Reg(name) => {
-                let value = self.get_register_content(name)?;
-                self.set_register_content(&reg_name, value)?;
+                self.get_register_content(name)
+                    .and_then(|value| self.set_register_content(&reg_name, value))?;
             }
             RMLNode::Num(n) => {
                 self.set_register_content(&reg_name, Value::Integer(*n))?;
@@ -202,8 +202,8 @@ impl Machine {
                 )?;
             }
             RMLNode::Operation(op_name, args) => {
-                let value = self.execute_operation(&op_name, &args)?;
-                self.set_register_content(&reg_name, value)?;
+                self.perform_operation(op_name, args)
+                    .and_then(|value| self.set_register_content(&reg_name, value))?;
             }
             _ => unreachable!(),
         }
@@ -254,8 +254,13 @@ impl Machine {
         }
     }
 
-    fn execute_perform(&self, operation: Arc<RMLNode>) -> MResult<&'static str> {
-        unimplemented!()
+    fn execute_perform(&mut self, operation: Arc<RMLNode>) -> MResult<&'static str> {
+        match &*operation {
+            RMLNode::Operation(op_name, args) => self
+                .perform_operation(op_name, args)
+                .and_then(|_| self.advance_pc()),
+            _ => unreachable!(),
+        }
     }
 
     fn execute_restore(&mut self, reg_name: String) -> MResult<&'static str> {
@@ -274,11 +279,36 @@ impl Machine {
     }
 
     fn execute_test(&mut self, operation: Arc<RMLNode>) -> MResult<&'static str> {
-        unimplemented!()
+        match &*operation {
+            RMLNode::Operation(op_name, args) => {
+                self.perform_operation(op_name, args).and_then(|value| {
+                    if let Value::Boolean(_) = value {
+                        self.flag.set(value);
+                        self.advance_pc()
+                    } else {
+                        Err(TypeError::expected("bool"))?
+                    }
+                })
+            }
+            _ => unreachable!(),
+        }
     }
 
-    fn execute_operation(&self, op_name: &String, args: &Vec<RMLNode>) -> MResult<Value> {
-        unimplemented!()
+    fn perform_operation(&mut self, op_name: &String, args: &Vec<RMLNode>) -> MResult<Value> {
+        let mut op_args: Vec<Value> = vec![];
+        for arg in args.iter() {
+            match arg {
+                RMLNode::Reg(r) => {
+                    let value = self.get_register_content(r)?;
+                    op_args.push(value);
+                }
+                RMLNode::Num(i) => op_args.push(Value::Integer(*i)),
+                RMLNode::Str(s) | RMLNode::Symbol(s) => op_args.push(Value::String(s.to_string())),
+                RMLNode::List(l) => op_args.push(Value::Compound(CompoundValue::new(l.clone()))),
+                _ => unreachable!(),
+            }
+        }
+        self.call_operation(op_name, op_args)
     }
 }
 

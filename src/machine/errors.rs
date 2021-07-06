@@ -15,10 +15,6 @@ pub enum MachineError {
     ToTupleError,
     #[error("Unknown label: {0}")]
     UnknownLabel(String),
-    #[error("Unknown instruction: {0}")]
-    UnknownInstruction(String),
-    #[error("Unrecognized instructions.")]
-    UnrecognizedInsts,
     #[error("No more instructions to be executed.")]
     NoMoreInsts,
     #[error("Unable to assemble the controller text, caused by\n\t{0}")]
