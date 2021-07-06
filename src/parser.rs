@@ -21,7 +21,7 @@ pub enum RMLNode {
     GotoLabel(Rc<RMLNode>),
     List(Vec<RMLNode>),
     Label(String),
-    Num(i64),
+    Num(i32),
     Operation((String, Vec<RMLNode>)),
     PerformOp(Rc<RMLNode>),
     Reg(String),
@@ -169,9 +169,11 @@ fn rml_const(input: &str) -> RMLResult<&str, RMLNode> {
 ///
 /// Valid syntax: -?\d+
 fn rml_number(input: &str) -> RMLResult<&str, RMLNode> {
-    let parser = recognize(pair(opt(tag("-")), digit1));
-    // TODO: Parse error handling
-    map(parser, |s: &str| RMLNode::Num(s.parse::<i64>().unwrap()))(input)
+    let (remain, num_string) = recognize(pair(opt(tag("-")), digit1))(input)?;
+    match num_string.parse::<i32>() {
+        Ok(n) => Ok((remain, RMLNode::Num(n))),
+        Err(_) => Err(nom::Err::Failure(RMLParseError::BadNum)),
+    }
 }
 
 /// RML List
