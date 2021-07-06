@@ -8,7 +8,7 @@ use std::{
 use impl_trait_for_tuples::*;
 
 use super::{
-    errors::{MachineError, Result, TypeError},
+    errors::{MResult, MachineError, TypeError},
     BaseType,
 };
 
@@ -80,11 +80,11 @@ impl Value {
 
 /// Convert Value types to Rust types.
 pub trait FromValue: Clone {
-    fn from_value(val: Value) -> Result<Self>;
+    fn from_value(val: Value) -> MResult<Self>;
 }
 
 impl FromValue for Value {
-    fn from_value(val: Value) -> Result<Self> {
+    fn from_value(val: Value) -> MResult<Self> {
         Ok(val)
     }
 }
@@ -92,7 +92,7 @@ impl FromValue for Value {
 macro_rules! from_value_to {
     ( $src:tt $dst:ty ) => {
         impl FromValue for $dst {
-            fn from_value(val: Value) -> Result<Self> {
+            fn from_value(val: Value) -> MResult<Self> {
                 if let Value::$src(v) = val {
                     <$dst>::try_from(v.clone()).map_err(|_| {
                         TypeError::expected(stringify!($dst))
@@ -113,7 +113,7 @@ from_value_to! { String String }
 
 /// Convert Vec<Value> to designated types.
 pub trait FromValueList {
-    fn from_value_list(values: &[Value]) -> Result<Self>
+    fn from_value_list(values: &[Value]) -> MResult<Self>
     where
         Self: Sized;
 }
@@ -125,7 +125,7 @@ pub trait FromValueList {
 #[impl_for_tuples(16)]
 #[tuple_types_custom_trait_bound(FromValue)]
 impl FromValueList for Tuple {
-    fn from_value_list(values: &[Value]) -> Result<Self> {
+    fn from_value_list(values: &[Value]) -> MResult<Self> {
         let mut iter = values.iter();
         Ok((for_tuples!(
             #( Tuple::from_value(iter.next().ok_or(
@@ -162,7 +162,7 @@ impl PartialEq for CompoundValue {
 }
 
 impl FromValue for CompoundValue {
-    fn from_value(val: Value) -> Result<Self> {
+    fn from_value(val: Value) -> MResult<Self> {
         if let Value::Compound(v) = val {
             Ok(v)
         } else {
@@ -186,7 +186,7 @@ impl CompoundValue {
         Arc::clone(&self.inner)
     }
 
-    pub fn downcast_ref<T>(&self) -> Result<&T>
+    pub fn downcast_ref<T>(&self) -> MResult<&T>
     where
         T: Any + Send + Sync,
     {

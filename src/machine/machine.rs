@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 
 use super::{
-    errors::{MachineError, OperationError, RegisterError, Result},
+    errors::{MResult, MachineError, OperationError, RegisterError},
     function::Function,
     operation::Operation,
     register::Register,
@@ -60,7 +60,7 @@ impl Machine {
         );
     }
 
-    pub fn allocate_register<S: Into<String>>(&mut self, name: S) -> Result<&'static str> {
+    pub fn allocate_register<S: Into<String>>(&mut self, name: S) -> MResult<&'static str> {
         let name = name.into();
         if name.eq("pc") && name.eq("flag") && self.register_table.contains_key(&name) {
             Err(RegisterError::AllocateFailure(name))?
@@ -70,7 +70,7 @@ impl Machine {
         }
     }
 
-    pub fn get_register<S: Into<String>>(&self, name: S) -> Result<BaseType> {
+    pub fn get_register<S: Into<String>>(&self, name: S) -> MResult<BaseType> {
         let name = name.into();
         match name.as_str() {
             "pc" => Ok(self.pc.get()),
@@ -97,7 +97,7 @@ impl Machine {
         self.the_inst_seq.len()
     }
 
-    fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> Result<Value> {
+    fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> MResult<Value> {
         let name = name.into();
         let res = Ok(Value::new("done".to_string()));
         match name.as_str() {
@@ -124,7 +124,7 @@ impl Machine {
         &self.the_ops
     }
 
-    pub fn execute(&mut self) -> Result<&'static str> {
+    pub fn execute(&mut self) -> MResult<&'static str> {
         if let Ok(insts_string) = self.pc.get().downcast::<String>() {
             let insts: Vec<&str> = insts_string
                 .as_str()
@@ -141,7 +141,7 @@ impl Machine {
         }
     }
 
-    pub fn start(&mut self) -> Result<&'static str> {
+    pub fn start(&mut self) -> MResult<&'static str> {
         self.pc.set(self.the_inst_seq.join("\n"));
         self.execute()
     }

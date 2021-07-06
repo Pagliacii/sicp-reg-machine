@@ -4,11 +4,11 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use super::errors::Result;
+use super::errors::MResult;
 use super::function::Function;
 use super::value::{FromValueList, Value};
 
-type TypeErasedFunction<R> = Arc<dyn Fn(Vec<Value>) -> Result<R> + Send + Sync>;
+type TypeErasedFunction<R> = Arc<dyn Fn(Vec<Value>) -> MResult<R> + Send + Sync>;
 /// Container for a `Function` to be executed
 #[derive(Clone)]
 pub struct Operation(TypeErasedFunction<Value>);
@@ -25,7 +25,7 @@ impl Operation {
     }
 
     /// Execute the inner function with parameters `args`
-    pub fn perform(&self, args: Vec<Value>) -> Result<Value> {
+    pub fn perform(&self, args: Vec<Value>) -> MResult<Value> {
         self.0(args)
     }
 }

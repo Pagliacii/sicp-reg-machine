@@ -9,7 +9,7 @@ mod stack;
 
 use std::collections::HashMap;
 
-use errors::Result;
+use errors::MResult;
 use machine::Machine;
 use operation::Operation;
 
@@ -22,7 +22,7 @@ pub fn make_machine<F, Args, R>(
     register_names: Vec<&str>,
     operations: &HashMap<&str, Operation>,
     _controller_text: &str,
-) -> Result<Machine> {
+) -> MResult<Machine> {
     let mut machine = Machine::new();
     for &reg_name in register_names.iter() {
         machine.allocate_register(reg_name)?;

@@ -19,7 +19,7 @@ pub enum MachineError {
     UnrecognizedInsts,
 }
 
-pub type Result<T> = std::result::Result<T, MachineError>;
+pub type MResult<T> = std::result::Result<T, MachineError>;
 
 impl PartialEq for MachineError {
     fn eq(&self, other: &Self) -> bool {
