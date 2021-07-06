@@ -2,8 +2,8 @@ use std::fmt;
 
 use thiserror::Error;
 
-/// Operations errors
-#[derive(Debug, Error)]
+/// Machine errors
+#[derive(Debug, Error, PartialEq)]
 pub enum MachineError {
     #[error(transparent)]
     OperationError(#[from] OperationError),
@@ -17,26 +17,16 @@ pub enum MachineError {
     UnknownInstruction(String),
     #[error("Unrecognized instructions.")]
     UnrecognizedInsts,
+    #[error("No more instructions to be executed.")]
+    NoMoreInsts,
+    #[error("Unable to assemble the controller text, caused by\n\t{0}")]
+    UnableAssemble(String),
 }
 
 pub type MResult<T> = std::result::Result<T, MachineError>;
 
-impl PartialEq for MachineError {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::OperationError(op1), Self::OperationError(op2)) => op1 == op2,
-            (Self::TypeError(t1), Self::TypeError(t2)) => t1 == t2,
-            (Self::RegisterError(r1), Self::RegisterError(r2)) => r1 == r2,
-            (Self::ToTupleError, Self::ToTupleError) => true,
-            (Self::UnknownInstruction(inst1), Self::UnknownInstruction(inst2)) => inst1 == inst2,
-            (Self::UnrecognizedInsts, Self::UnrecognizedInsts) => true,
-            _ => false,
-        }
-    }
-}
-
 /// Ref: https://docs.rs/oso/0.13.0/src/oso/errors.rs.html
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub struct TypeError {
     pub got: Option<String>,
     pub expected: String,
@@ -49,12 +39,6 @@ impl fmt::Display for TypeError {
         } else {
             writeln!(f, "TypeError: expected {}", self.expected)
         }
-    }
-}
-
-impl PartialEq for TypeError {
-    fn eq(&self, other: &Self) -> bool {
-        self.expected == other.expected && self.got == other.got
     }
 }
 
@@ -74,7 +58,7 @@ impl TypeError {
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum OperationError {
     #[error("Operation {0} not found")]
     NotFound(String),
@@ -88,42 +72,12 @@ pub enum OperationError {
     },
 }
 
-impl PartialEq for OperationError {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::NotFound(op1), Self::NotFound(op2)) => op1 == op2,
-            (Self::CallFailure(op1), Self::CallFailure(op2)) => op1 == op2,
-            (
-                Self::InvalidArgType {
-                    op_name: op1,
-                    arg_name: a1,
-                    type_name: t1,
-                },
-                Self::InvalidArgType {
-                    op_name: op2,
-                    arg_name: a2,
-                    type_name: t2,
-                },
-            ) => op1 == op2 && a1 == a2 && t1 == t2,
-            _ => false,
-        }
-    }
-}
-
-#[derive(Debug, Error)]
+#[derive(Debug, Error, PartialEq)]
 pub enum RegisterError {
     #[error("Unknown register: {0}")]
     LookupFailure(String),
     #[error("Multiply defined register: {0}")]
     AllocateFailure(String),
-}
-
-impl PartialEq for RegisterError {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::LookupFailure(r1), Self::LookupFailure(r2)) => r1 == r2,
-            (Self::AllocateFailure(r1), Self::AllocateFailure(r2)) => r1 == r2,
-            _ => false,
-        }
-    }
+    #[error("Unmatched register content type, expected {0}")]
+    UnmatchedContentType(String),
 }

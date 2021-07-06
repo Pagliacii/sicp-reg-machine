@@ -201,7 +201,6 @@ impl CompoundValue {
 /// See https://users.rust-lang.org/t/how-could-i-implement-a-more-accurate-comparison/61698/6
 #[derive(Copy, Clone)]
 struct VTable {
-    type_id: TypeId,
     type_name: &'static str,
     debug: fn(&dyn Any) -> &dyn Debug,
     partial_eq: fn(&dyn Any, &dyn Any) -> bool,
@@ -213,7 +212,6 @@ impl VTable {
         T: Any + Debug + PartialEq + 'static,
     {
         Self {
-            type_id: TypeId::of::<T>(),
             type_name: type_name::<T>(),
             debug: |value: &dyn Any| -> &dyn Debug { value.downcast_ref::<T>().unwrap() },
             partial_eq: |left: &dyn Any, right: &dyn Any| -> bool {

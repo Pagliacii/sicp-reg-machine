@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::sync::Arc;
 
 use super::{
     errors::{MResult, MachineError, OperationError, RegisterError},
@@ -12,12 +13,14 @@ use super::{
     value::{FromValueList, Value},
     BaseType,
 };
+use crate::assemble::AssembledInsts;
+use crate::parser::RMLNode;
 
 pub struct Machine {
     pc: Register,
     flag: Register,
     stack: Stack,
-    the_inst_seq: Vec<String>,
+    the_inst_seq: AssembledInsts,
     the_ops: HashMap<String, Operation>,
     register_table: HashMap<String, Register>,
 }
@@ -28,7 +31,7 @@ impl Machine {
             pc: Register::new(),
             flag: Register::new(),
             stack: Stack::new(),
-            the_inst_seq: Vec::new(),
+            the_inst_seq: (Vec::new(), HashMap::new()),
             the_ops: HashMap::new(),
             register_table: HashMap::new(),
         }
@@ -42,7 +45,7 @@ impl Machine {
         self.stack.print_statistics();
     }
 
-    fn install_operation<F, Args, R, S>(&mut self, name: S, f: F)
+    pub fn install_operation<F, Args, R, S>(&mut self, name: S, f: F)
     where
         F: Function<Args, Result = R>,
         Args: FromValueList,
@@ -85,19 +88,15 @@ impl Machine {
         }
     }
 
-    fn total_registers(&self) -> usize {
+    pub fn total_registers(&self) -> usize {
         self.register_table.len() + 2
     }
 
-    fn total_operations(&self) -> usize {
+    pub fn total_operations(&self) -> usize {
         self.the_ops.len() + 2
     }
 
-    fn total_instructions(&self) -> usize {
-        self.the_inst_seq.len()
-    }
-
-    fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> MResult<Value> {
+    pub fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> MResult<Value> {
         let name = name.into();
         let res = Ok(Value::new("done".to_string()));
         match name.as_str() {
@@ -124,34 +123,84 @@ impl Machine {
         &self.the_ops
     }
 
+    pub fn install_instructions(&mut self, insts: AssembledInsts) {
+        self.the_inst_seq = insts;
+    }
+
+    pub fn start(&mut self) -> MResult<&'static str> {
+        self.pc.set(0usize);
+        self.execute()
+    }
+
     pub fn execute(&mut self) -> MResult<&'static str> {
-        if let Ok(insts_string) = self.pc.get().downcast::<String>() {
-            let insts: Vec<&str> = insts_string
-                .as_str()
-                .split("\n")
-                .filter(|s| !s.is_empty())
-                .collect();
-            if insts.is_empty() || insts[0] == "*unassigned*" {
+        if let Some(&pointer) = self.pc.get().downcast_ref::<usize>() {
+            let insts = &self.the_inst_seq.0;
+            if pointer == insts.len() {
                 return Ok("done");
+            } else if pointer > insts.len() {
+                return Err(MachineError::NoMoreInsts);
             }
-            // TODO: Execute instruction actually
-            Ok("TODO")
+            match insts[pointer].clone() {
+                RMLNode::Assignment((reg_name, op)) => self.execute_assignment(reg_name, op),
+                RMLNode::Branch(label) => self.execute_branch(label),
+                RMLNode::GotoLabel(label) => self.execute_goto(label),
+                RMLNode::PerformOp(op) => self.execute_perform(op),
+                RMLNode::RestoreFrom(reg_name) => self.execute_restore(reg_name),
+                RMLNode::SaveTo(reg_name) => self.execute_save(reg_name),
+                RMLNode::TestOp(op) => self.execute_test(op),
+                _ => unreachable!(),
+            }
         } else {
             Err(MachineError::UnrecognizedInsts)
         }
     }
 
-    pub fn start(&mut self) -> MResult<&'static str> {
-        self.pc.set(self.the_inst_seq.join("\n"));
-        self.execute()
+    fn execute_assignment(
+        &mut self,
+        reg_name: String,
+        operation: Arc<RMLNode>,
+    ) -> MResult<&'static str> {
+        unimplemented!()
     }
 
-    pub fn install_instructions<S: Into<String>>(&mut self, insts: Vec<S>) {
-        self.the_inst_seq = insts.into_iter().map(|s| s.into()).collect();
+    fn extract_label_name(&self, label: Arc<RMLNode>) -> MResult<String> {
+        match &*label {
+            RMLNode::Reg(reg_name) => {
+                if let Some(label) = self.get_register(reg_name)?.downcast_ref::<String>() {
+                    Ok(label.to_string())
+                } else {
+                    Err(RegisterError::UnmatchedContentType("String".into()))?
+                }
+            }
+            RMLNode::Label(label_name) => Ok(label_name.to_string()),
+            _ => unreachable!(),
+        }
     }
 
-    pub fn install_instruction<S: Into<String>>(&mut self, inst: S) {
-        self.the_inst_seq.push(inst.into());
+    fn execute_branch(&mut self, label: Arc<RMLNode>) -> MResult<&'static str> {
+        let label_name = self.extract_label_name(label)?;
+        unimplemented!()
+    }
+
+    fn execute_goto(&mut self, label: Arc<RMLNode>) -> MResult<&'static str> {
+        let label_name = self.extract_label_name(label)?;
+        unimplemented!()
+    }
+
+    fn execute_perform(&self, operation: Arc<RMLNode>) -> MResult<&'static str> {
+        unimplemented!()
+    }
+
+    fn execute_restore(&mut self, reg_name: String) -> MResult<&'static str> {
+        unimplemented!()
+    }
+
+    fn execute_save(&mut self, reg_name: String) -> MResult<&'static str> {
+        unimplemented!()
+    }
+
+    fn execute_test(&mut self, operation: Arc<RMLNode>) -> MResult<&'static str> {
+        unimplemented!()
     }
 }
 
@@ -165,7 +214,6 @@ mod machine_tests {
         assert!(m.stack.is_empty());
         assert_eq!(m.total_registers(), 2);
         assert_eq!(m.total_operations(), 2);
-        assert_eq!(m.total_instructions(), 0);
     }
 
     #[test]
@@ -246,32 +294,6 @@ mod machine_tests {
         let res = m.call_operation("div", vec![Value::new(1), Value::new(1)]);
         assert!(res.is_ok());
         assert_eq!(Ok(Value::new(1)), res);
-    }
-
-    #[test]
-    fn test_execute_instructions() {
-        let mut m = Machine::new();
-        let res = m.execute();
-        assert_eq!(Ok("done"), res);
-
-        m.pc.set(1);
-        let res = m.execute();
-        assert_eq!(Err(MachineError::UnrecognizedInsts), res);
-
-        m.pc.set("Some instructions".to_string());
-        let res = m.execute();
-        assert_eq!(Ok("TODO"), res);
-    }
-
-    #[test]
-    fn test_install_instructions() {
-        let mut m = Machine::new();
-        m.install_instructions(vec!["test1", "test2", "test3"]);
-        assert_eq!(3, m.the_inst_seq.len());
-        m.install_instruction("test4");
-        assert_eq!(4, m.the_inst_seq.len());
-        m.install_instructions(vec!["test5"]);
-        assert_eq!(1, m.the_inst_seq.len());
     }
 
     #[test]

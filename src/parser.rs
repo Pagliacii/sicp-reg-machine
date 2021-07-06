@@ -1,6 +1,6 @@
 //! A parser of the register machine language.
 
-use std::rc::Rc;
+use std::sync::Arc;
 
 use nom::{
     branch::alt,
@@ -16,20 +16,20 @@ use nom::{
 /// RML Syntax Tree
 #[derive(Clone, Debug, PartialEq)]
 pub enum RMLNode {
-    Assignment((String, Rc<RMLNode>)),
-    Branch(Rc<RMLNode>),
-    GotoLabel(Rc<RMLNode>),
+    Assignment((String, Arc<RMLNode>)),
+    Branch(Arc<RMLNode>),
+    GotoLabel(Arc<RMLNode>),
     List(Vec<RMLNode>),
     Label(String),
     Num(i32),
     Operation((String, Vec<RMLNode>)),
-    PerformOp(Rc<RMLNode>),
+    PerformOp(Arc<RMLNode>),
     Reg(String),
     RestoreFrom(String),
     SaveTo(String),
     Str(String),
     Symbol(String),
-    TestOp(Rc<RMLNode>),
+    TestOp(Arc<RMLNode>),
 }
 
 /// RML Parse Error
@@ -227,7 +227,7 @@ fn rml_branch(input: &str) -> RMLResult<&str, RMLNode> {
         preceded(sce(tag("branch")), rml_label),
         sce(char(')')),
     );
-    map(parser, |l| RMLNode::Branch(Rc::new(l)))(input)
+    map(parser, |l| RMLNode::Branch(Arc::new(l)))(input)
 }
 
 /// RML Goto Instruction
@@ -242,7 +242,7 @@ fn rml_goto(input: &str) -> RMLResult<&str, RMLNode> {
         preceded(sce(tag("goto")), alt((rml_label, rml_reg))),
         sce(char(')')),
     );
-    map(parser, |l| RMLNode::GotoLabel(Rc::new(l)))(input)
+    map(parser, |l| RMLNode::GotoLabel(Arc::new(l)))(input)
 }
 
 /// Operation name
@@ -286,8 +286,8 @@ fn rml_apply_operation(input: &str) -> RMLResult<&str, RMLNode> {
         sce(char(')')),
     );
     map(parser, |(inst, op)| match inst {
-        "test" => RMLNode::TestOp(Rc::new(op)),
-        "perform" => RMLNode::PerformOp(Rc::new(op)),
+        "test" => RMLNode::TestOp(Arc::new(op)),
+        "perform" => RMLNode::PerformOp(Arc::new(op)),
         _ => unreachable!(),
     })(input)
 }
@@ -331,12 +331,12 @@ fn rml_assign(input: &str) -> RMLResult<&str, RMLNode> {
         sce(char(')')),
     );
     map(parser, |(reg, value)| {
-        RMLNode::Assignment((reg.into(), Rc::new(value)))
+        RMLNode::Assignment((reg.into(), Arc::new(value)))
     })(input)
 }
 
 #[cfg(test)]
-mod tests {
+mod parser_tests {
     use super::*;
 
     #[test]
@@ -483,7 +483,7 @@ mod tests {
     #[test]
     fn test_rml_branch() {
         assert_eq!(
-            Ok(("", RMLNode::Branch(Rc::new(RMLNode::Label("a".into()))))),
+            Ok(("", RMLNode::Branch(Arc::new(RMLNode::Label("a".into()))))),
             rml_branch("(branch (label a))")
         );
     }
@@ -491,11 +491,11 @@ mod tests {
     #[test]
     fn test_rml_goto() {
         assert_eq!(
-            Ok(("", RMLNode::GotoLabel(Rc::new(RMLNode::Label("a".into()))))),
+            Ok(("", RMLNode::GotoLabel(Arc::new(RMLNode::Label("a".into()))))),
             rml_goto("(goto (label a))")
         );
         assert_eq!(
-            Ok(("", RMLNode::GotoLabel(Rc::new(RMLNode::Reg("a".into()))))),
+            Ok(("", RMLNode::GotoLabel(Arc::new(RMLNode::Reg("a".into()))))),
             rml_goto("(goto (reg a))")
         );
     }
@@ -541,7 +541,7 @@ mod tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::TestOp(Rc::new(RMLNode::Operation((
+                RMLNode::TestOp(Arc::new(RMLNode::Operation((
                     "add".into(),
                     vec![RMLNode::Reg("a".into()), RMLNode::Num(1)]
                 )))),
@@ -551,7 +551,7 @@ mod tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::TestOp(Rc::new(RMLNode::Operation((
+                RMLNode::TestOp(Arc::new(RMLNode::Operation((
                     "eq?".into(),
                     vec![RMLNode::Reg("a".into()), RMLNode::Num(1)]
                 )))),
@@ -561,7 +561,7 @@ mod tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::PerformOp(Rc::new(RMLNode::Operation(("test".into(), vec![])),))
+                RMLNode::PerformOp(Arc::new(RMLNode::Operation(("test".into(), vec![])),))
             )),
             rml_apply_operation("(perform (op test))")
         );
@@ -585,7 +585,7 @@ mod tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::Assignment(("a".into(), Rc::new(RMLNode::Reg("b".into()))))
+                RMLNode::Assignment(("a".into(), Arc::new(RMLNode::Reg("b".into()))))
             )),
             rml_assign("(assign a (reg b))"),
         );
@@ -593,7 +593,7 @@ mod tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::Assignment(("a".into(), Rc::new(RMLNode::Num(1))))
+                RMLNode::Assignment(("a".into(), Arc::new(RMLNode::Num(1))))
             )),
             rml_assign("(assign a (const 1))"),
         );
@@ -603,7 +603,7 @@ mod tests {
                 "",
                 RMLNode::Assignment((
                     "a".into(),
-                    Rc::new(RMLNode::Operation((
+                    Arc::new(RMLNode::Operation((
                         "add".into(),
                         vec![RMLNode::Reg("b".into()), RMLNode::Num(1)]
                     )))
@@ -615,7 +615,7 @@ mod tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::Assignment(("a".into(), Rc::new(RMLNode::Label("b".into()))))
+                RMLNode::Assignment(("a".into(), Arc::new(RMLNode::Label("b".into()))))
             )),
             rml_assign("(assign a (label b))"),
         );
@@ -637,13 +637,13 @@ mod tests {
                     RMLNode::Symbol("controller".into()),
                     RMLNode::Assignment((
                         "n".into(),
-                        Rc::new(RMLNode::Operation(("read".into(), vec![])))
+                        Arc::new(RMLNode::Operation(("read".into(), vec![])))
                     )),
-                    RMLNode::TestOp(Rc::new(RMLNode::Operation((
+                    RMLNode::TestOp(Arc::new(RMLNode::Operation((
                         "eq?".into(),
                         vec![RMLNode::Reg("n".into()), RMLNode::Symbol("q".into())]
                     )))),
-                    RMLNode::Branch(Rc::new(RMLNode::Label("done".into()))),
+                    RMLNode::Branch(Arc::new(RMLNode::Label("done".into()))),
                 ]
             )),
             res
@@ -658,7 +658,7 @@ mod tests {
         assert_eq!(
             Ok(vec![
                 RMLNode::Symbol("controller".into()),
-                RMLNode::PerformOp(Rc::new(RMLNode::Operation((
+                RMLNode::PerformOp(Arc::new(RMLNode::Operation((
                     "print".into(),
                     vec![RMLNode::Str(
                         "Please enter a number or 'q' for quit: ".into()
@@ -666,48 +666,48 @@ mod tests {
                 )))),
                 RMLNode::Assignment((
                     "n".into(),
-                    Rc::new(RMLNode::Operation(("read".into(), vec![])))
+                    Arc::new(RMLNode::Operation(("read".into(), vec![])))
                 )),
-                RMLNode::TestOp(Rc::new(RMLNode::Operation((
+                RMLNode::TestOp(Arc::new(RMLNode::Operation((
                     "eq?".into(),
                     vec![RMLNode::Reg("n".into()), RMLNode::Symbol("q".into())]
                 )))),
-                RMLNode::Branch(Rc::new(RMLNode::Label("done".into()))),
-                RMLNode::TestOp(Rc::new(RMLNode::Operation((
+                RMLNode::Branch(Arc::new(RMLNode::Label("done".into()))),
+                RMLNode::TestOp(Arc::new(RMLNode::Operation((
                     "noninteger?".into(),
                     vec![RMLNode::Reg("n".into())]
                 )))),
-                RMLNode::Branch(Rc::new(RMLNode::Label("controller".into()))),
+                RMLNode::Branch(Arc::new(RMLNode::Label("controller".into()))),
                 RMLNode::Assignment((
                     "continue".into(),
-                    Rc::new(RMLNode::Label("fib-done".into()))
+                    Arc::new(RMLNode::Label("fib-done".into()))
                 )),
                 RMLNode::Symbol("fib-loop".into()),
-                RMLNode::TestOp(Rc::new(RMLNode::Operation((
+                RMLNode::TestOp(Arc::new(RMLNode::Operation((
                     "<".into(),
                     vec![RMLNode::Reg("n".into()), RMLNode::Num(2)]
                 )))),
-                RMLNode::Branch(Rc::new(RMLNode::Label("immediate-answer".into()))),
+                RMLNode::Branch(Arc::new(RMLNode::Label("immediate-answer".into()))),
                 RMLNode::SaveTo("continue".into()),
                 RMLNode::Assignment((
                     "continue".into(),
-                    Rc::new(RMLNode::Label("afterfib-n-1".into()))
+                    Arc::new(RMLNode::Label("afterfib-n-1".into()))
                 )),
                 RMLNode::SaveTo("n".into()),
                 RMLNode::Assignment((
                     "n".into(),
-                    Rc::new(RMLNode::Operation((
+                    Arc::new(RMLNode::Operation((
                         "-".into(),
                         vec![RMLNode::Reg("n".into()), RMLNode::Num(1)]
                     )))
                 )),
-                RMLNode::GotoLabel(Rc::new(RMLNode::Label("fib-loop".into()))),
+                RMLNode::GotoLabel(Arc::new(RMLNode::Label("fib-loop".into()))),
                 RMLNode::Symbol("afterfib-n-1".into()),
                 RMLNode::RestoreFrom("n".into()),
                 RMLNode::RestoreFrom("continue".into()),
                 RMLNode::Assignment((
                     "n".into(),
-                    Rc::new(RMLNode::Operation((
+                    Arc::new(RMLNode::Operation((
                         "-".into(),
                         vec![RMLNode::Reg("n".into()), RMLNode::Num(2)]
                     )))
@@ -715,39 +715,39 @@ mod tests {
                 RMLNode::SaveTo("continue".into()),
                 RMLNode::Assignment((
                     "continue".into(),
-                    Rc::new(RMLNode::Label("afterfib-n-2".into()))
+                    Arc::new(RMLNode::Label("afterfib-n-2".into()))
                 )),
                 RMLNode::SaveTo("val".into()),
-                RMLNode::GotoLabel(Rc::new(RMLNode::Label("fib-loop".into()))),
+                RMLNode::GotoLabel(Arc::new(RMLNode::Label("fib-loop".into()))),
                 RMLNode::Symbol("afterfib-n-2".into()),
-                RMLNode::Assignment(("n".into(), Rc::new(RMLNode::Reg("val".into())))),
+                RMLNode::Assignment(("n".into(), Arc::new(RMLNode::Reg("val".into())))),
                 RMLNode::RestoreFrom("val".into()),
                 RMLNode::RestoreFrom("continue".into()),
                 RMLNode::Assignment((
                     "val".into(),
-                    Rc::new(RMLNode::Operation((
+                    Arc::new(RMLNode::Operation((
                         "+".into(),
                         vec![RMLNode::Reg("val".into()), RMLNode::Reg("n".into())]
                     )))
                 )),
-                RMLNode::GotoLabel(Rc::new(RMLNode::Reg("continue".into()))),
+                RMLNode::GotoLabel(Arc::new(RMLNode::Reg("continue".into()))),
                 RMLNode::Symbol("immediate-answer".into()),
-                RMLNode::Assignment(("val".into(), Rc::new(RMLNode::Reg("n".into())))),
-                RMLNode::GotoLabel(Rc::new(RMLNode::Reg("continue".into()))),
+                RMLNode::Assignment(("val".into(), Arc::new(RMLNode::Reg("n".into())))),
+                RMLNode::GotoLabel(Arc::new(RMLNode::Reg("continue".into()))),
                 RMLNode::Symbol("fib-done".into()),
-                RMLNode::PerformOp(Rc::new(RMLNode::Operation((
+                RMLNode::PerformOp(Arc::new(RMLNode::Operation((
                     "print-stack-statistics".into(),
                     vec![]
                 )))),
-                RMLNode::PerformOp(Rc::new(RMLNode::Operation((
+                RMLNode::PerformOp(Arc::new(RMLNode::Operation((
                     "print".into(),
                     vec![RMLNode::Reg("val".into())]
                 )))),
-                RMLNode::PerformOp(Rc::new(RMLNode::Operation((
+                RMLNode::PerformOp(Arc::new(RMLNode::Operation((
                     "initialize-stack".into(),
                     vec![]
                 )))),
-                RMLNode::GotoLabel(Rc::new(RMLNode::Label("controller".into()))),
+                RMLNode::GotoLabel(Arc::new(RMLNode::Label("controller".into()))),
                 RMLNode::Symbol("done".into()),
             ]),
             res
