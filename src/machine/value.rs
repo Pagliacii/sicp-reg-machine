@@ -198,6 +198,7 @@ impl CompoundValue {
     }
 }
 
+/// See https://users.rust-lang.org/t/how-could-i-implement-a-more-accurate-comparison/61698/6
 #[derive(Copy, Clone)]
 struct VTable {
     type_id: TypeId,
