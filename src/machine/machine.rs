@@ -117,7 +117,7 @@ impl Machine {
     }
 
     pub fn start(&mut self) -> MResult<&'static str> {
-        self.pc.set(Value::Pointer(0));
+        self.reset_pc();
         self.execute()
     }
 
@@ -156,6 +156,10 @@ impl Machine {
                 type_name: "usize".to_string(),
             })?
         }
+    }
+
+    fn reset_pc(&mut self) {
+        self.pc.set(Value::Pointer(0));
     }
 
     fn get_register_content(&self, reg_name: &String) -> MResult<Value> {
@@ -230,6 +234,9 @@ impl Machine {
         if let Some(insts) = self.the_labels.get(&label_name) {
             if let Value::Boolean(true) = self.flag.get() {
                 self.the_inst_seq = insts.clone();
+                self.reset_pc();
+            } else {
+                self.advance_pc()?;
             }
             Ok("Done")
         } else {
@@ -241,6 +248,7 @@ impl Machine {
         let label_name = self.extract_label_name(label)?;
         if let Some(insts) = self.the_labels.get(&label_name) {
             self.the_inst_seq = insts.clone();
+            self.reset_pc();
             Ok("Done")
         } else {
             Err(MachineError::UnknownLabel(label_name))
