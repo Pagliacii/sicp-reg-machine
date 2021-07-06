@@ -36,7 +36,7 @@ impl Stack {
             self.curr_depth -= 1;
             Ok(item)
         } else {
-            Err("Empty stack: POP")
+            Err("try to pop from an empty stack")
         }
     }
 

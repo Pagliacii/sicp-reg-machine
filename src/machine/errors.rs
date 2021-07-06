@@ -23,6 +23,8 @@ pub enum MachineError {
     NoMoreInsts,
     #[error("Unable to assemble the controller text, caused by\n\t{0}")]
     UnableAssemble(String),
+    #[error("Stack error: {0}.")]
+    StackError(String),
 }
 
 pub type MResult<T> = std::result::Result<T, MachineError>;

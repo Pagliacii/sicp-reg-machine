@@ -207,8 +207,7 @@ impl Machine {
             }
             _ => unreachable!(),
         }
-        self.advance_pc()?;
-        Ok("Done")
+        self.advance_pc()
     }
 
     fn extract_label_name(&self, label: Arc<RMLNode>) -> MResult<String> {
@@ -235,10 +234,10 @@ impl Machine {
             if let Value::Boolean(true) = self.flag.get() {
                 self.the_inst_seq = insts.clone();
                 self.reset_pc();
+                Ok("Done")
             } else {
-                self.advance_pc()?;
+                self.advance_pc()
             }
-            Ok("Done")
         } else {
             Err(MachineError::UnknownLabel(label_name))
         }
@@ -260,11 +259,18 @@ impl Machine {
     }
 
     fn execute_restore(&mut self, reg_name: String) -> MResult<&'static str> {
-        unimplemented!()
+        let value = self
+            .stack
+            .pop()
+            .map_err(|s: &str| MachineError::StackError(s.to_string()))?;
+        self.set_register_content(&reg_name, value)?;
+        self.advance_pc()
     }
 
     fn execute_save(&mut self, reg_name: String) -> MResult<&'static str> {
-        unimplemented!()
+        let value = self.get_register_content(&reg_name)?;
+        self.stack.push(value);
+        self.advance_pc()
     }
 
     fn execute_test(&mut self, operation: Arc<RMLNode>) -> MResult<&'static str> {
