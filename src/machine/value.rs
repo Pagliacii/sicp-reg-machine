@@ -7,40 +7,24 @@ use std::{
 
 use impl_trait_for_tuples::*;
 
-use super::{
-    errors::{MResult, MachineError, TypeError},
-    BaseType,
-};
+use super::errors::{MResult, MachineError, TypeError};
 
 /// An enum of the possible value types that can be sent to an operation.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Integer(i32),
-    Float(f64),
+    Pointer(usize),
     String(String),
     Boolean(bool),
     Compound(CompoundValue),
-}
-
-impl PartialEq for Value {
-    fn eq(&self, other: &Value) -> bool {
-        match (self, other) {
-            (Value::Boolean(b1), Value::Boolean(b2)) => b1 == b2,
-            (Value::Float(f1), Value::Float(f2)) => f1 == f2,
-            (Value::Integer(i1), Value::Integer(i2)) => i1 == i2,
-            (Value::String(s1), Value::String(s2)) => s1 == s2,
-            (Value::Compound(c1), Value::Compound(c2)) => c1 == c2,
-            _ => false,
-        }
-    }
 }
 
 impl From<Value> for String {
     fn from(item: Value) -> Self {
         match item {
             Value::Boolean(b) => format!("Boolean ({})", b),
-            Value::Float(f) => format!("Float ({})", f),
             Value::Integer(i) => format!("Integer ({})", i),
+            Value::Pointer(p) => format!("Pointer ({})", p),
             Value::String(s) => format!("String ({})", s),
             Value::Compound(c) => c.to_string(),
         }
@@ -61,8 +45,8 @@ impl Value {
         let type_id = val.type_id();
         if TypeId::of::<i32>() == type_id {
             Self::Integer(*(&val as &dyn Any).downcast_ref::<i32>().unwrap())
-        } else if TypeId::of::<f64>() == type_id {
-            Self::Float(*(&val as &dyn Any).downcast_ref::<f64>().unwrap())
+        } else if TypeId::of::<usize>() == type_id {
+            Self::Pointer(*(&val as &dyn Any).downcast_ref::<usize>().unwrap())
         } else if TypeId::of::<bool>() == type_id {
             Self::Boolean(*(&val as &dyn Any).downcast_ref::<bool>().unwrap())
         } else if TypeId::of::<String>() == type_id {
@@ -106,9 +90,10 @@ macro_rules! from_value_to {
         }
     };
 }
-from_value_to! { Integer i32 }
-from_value_to! { Float f64 }
+
 from_value_to! { Boolean bool }
+from_value_to! { Integer i32 }
+from_value_to! { Pointer usize }
 from_value_to! { String String }
 
 /// Convert Vec<Value> to designated types.
@@ -139,7 +124,7 @@ impl FromValueList for Tuple {
 #[derive(Clone)]
 pub struct CompoundValue {
     /// actual value
-    inner: BaseType,
+    inner: Arc<dyn Any + Send + Sync>,
     vtable: VTable,
 }
 
@@ -182,7 +167,7 @@ impl CompoundValue {
         }
     }
 
-    pub fn value(&self) -> BaseType {
+    pub fn value(&self) -> Arc<dyn Any + Send + Sync> {
         Arc::clone(&self.inner)
     }
 
@@ -238,8 +223,8 @@ mod value_mod_tests {
     fn test_value_compare() {
         let a = Value::new(1);
         let b = Value::Integer(2);
-        let c = Value::new(3.0);
-        let d = Value::Float(4.0);
+        let c = Value::new(3usize);
+        let d = Value::Pointer(4);
         let e = Value::new(true);
         let f = Value::Boolean(false);
         let g = Value::new(String::from("Hello"));
@@ -299,10 +284,10 @@ mod value_mod_tests {
         assert!(ii.is_ok());
         assert_eq!(1, ii.unwrap());
 
-        let f = Value::new(1.0);
-        let ff = f64::from_value(f);
-        assert!(ff.is_ok());
-        assert_eq!(1.0, ff.unwrap());
+        let p = Value::Pointer(1);
+        let pp = usize::from_value(p);
+        assert!(pp.is_ok());
+        assert_eq!(1usize, pp.unwrap());
 
         let b = Value::new(false);
         let bb = bool::from_value(b);

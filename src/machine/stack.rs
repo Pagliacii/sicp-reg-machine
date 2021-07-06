@@ -1,14 +1,10 @@
 //! A stack structure
 
-use std::any::Any;
-use std::cmp;
-use std::sync::Arc;
-
-use super::BaseType;
+use super::value::Value;
 
 #[derive(Debug)]
 pub struct Stack {
-    stack: Vec<BaseType>,
+    stack: Vec<Value>,
     num_pushes: i32,
     max_depth: i32,
     curr_depth: i32,
@@ -28,17 +24,14 @@ impl Stack {
         self.curr_depth == 0 && self.stack.is_empty()
     }
 
-    pub fn push<T>(&mut self, item: T)
-    where
-        T: Any + Send + Sync,
-    {
-        self.stack.push(Arc::new(item));
+    pub fn push(&mut self, item: Value) {
+        self.stack.push(item);
         self.num_pushes += 1;
         self.curr_depth += 1;
-        self.max_depth = cmp::max(self.curr_depth, self.max_depth);
+        self.max_depth = std::cmp::max(self.curr_depth, self.max_depth);
     }
 
-    pub fn pop(&mut self) -> Result<BaseType, &'static str> {
+    pub fn pop(&mut self) -> Result<Value, &'static str> {
         if let Some(item) = self.stack.pop() {
             self.curr_depth -= 1;
             Ok(item)
@@ -70,7 +63,7 @@ mod stack_tests {
     fn test_push_item() {
         let mut stack: Stack = Stack::new();
         let right: i32 = 42;
-        stack.push(right);
+        stack.push(Value::new(right));
         assert_eq!(stack.num_pushes, 1);
         assert_eq!(stack.curr_depth, 1);
         assert_eq!(stack.max_depth, 1);
@@ -79,13 +72,14 @@ mod stack_tests {
     #[test]
     fn test_pop_item() {
         let mut stack: Stack = Stack::new();
-        let right: i32 = 42;
-        stack.push(right);
+        let right = Value::Integer(42);
+        stack.push(right.clone());
         assert_eq!(stack.num_pushes, 1);
         assert_eq!(stack.curr_depth, 1);
         assert_eq!(stack.max_depth, 1);
+
         let popped = stack.pop().unwrap();
-        assert_eq!(popped.downcast_ref::<i32>(), Some(&right));
+        assert_eq!(popped, right);
         assert_eq!(stack.num_pushes, 1);
         assert_eq!(stack.curr_depth, 0);
         assert_eq!(stack.max_depth, 1);
@@ -94,8 +88,8 @@ mod stack_tests {
     #[test]
     fn test_initialize() {
         let mut stack: Stack = Stack::new();
-        stack.push("Hello!");
-        stack.push(42);
+        stack.push(Value::new("Hello!".to_string()));
+        stack.push(Value::new(42));
         assert!(stack.pop().is_ok());
         stack.initialize();
         assert!(stack.is_empty());
@@ -109,8 +103,8 @@ mod stack_tests {
         let mut stack: Stack = Stack::new();
         assert!(stack.is_empty());
 
-        stack.push("Hello!");
-        stack.push(42);
+        stack.push(Value::new("Hello!".to_string()));
+        stack.push(Value::new(42));
         assert!(!stack.is_empty());
 
         stack.pop().ok();

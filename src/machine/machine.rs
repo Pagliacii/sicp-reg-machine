@@ -10,8 +10,7 @@ use super::{
     operation::Operation,
     register::Register,
     stack::Stack,
-    value::{FromValueList, Value},
-    BaseType,
+    value::{CompoundValue, FromValueList, Value},
 };
 use crate::assemble::AssembledInsts;
 use crate::parser::RMLNode;
@@ -73,21 +72,6 @@ impl Machine {
         }
     }
 
-    pub fn get_register<S: Into<String>>(&self, name: S) -> MResult<BaseType> {
-        let name = name.into();
-        match name.as_str() {
-            "pc" => Ok(self.pc.get()),
-            "flag" => Ok(self.flag.get()),
-            _ => {
-                if let Some(v) = self.register_table.get(&name) {
-                    Ok(v.get())
-                } else {
-                    Err(RegisterError::LookupFailure(name))?
-                }
-            }
-        }
-    }
-
     pub fn total_registers(&self) -> usize {
         self.register_table.len() + 2
     }
@@ -98,7 +82,7 @@ impl Machine {
 
     pub fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> MResult<Value> {
         let name = name.into();
-        let res = Ok(Value::new("done".to_string()));
+        let res = Ok(Value::new("Done".to_string()));
         match name.as_str() {
             "initialize-stack" => {
                 self.initialize_stack();
@@ -128,20 +112,20 @@ impl Machine {
     }
 
     pub fn start(&mut self) -> MResult<&'static str> {
-        self.pc.set(0usize);
+        self.pc.set(Value::Pointer(0));
         self.execute()
     }
 
     pub fn execute(&mut self) -> MResult<&'static str> {
-        if let Some(&pointer) = self.pc.get().downcast_ref::<usize>() {
+        if let Value::Pointer(pointer) = *self.pc.get() {
             let insts = &self.the_inst_seq.0;
             if pointer == insts.len() {
-                return Ok("done");
+                return Ok("Done");
             } else if pointer > insts.len() {
                 return Err(MachineError::NoMoreInsts);
             }
             match insts[pointer].clone() {
-                RMLNode::Assignment((reg_name, op)) => self.execute_assignment(reg_name, op),
+                RMLNode::Assignment(reg_name, op) => self.execute_assignment(reg_name, op),
                 RMLNode::Branch(label) => self.execute_branch(label),
                 RMLNode::GotoLabel(label) => self.execute_goto(label),
                 RMLNode::PerformOp(op) => self.execute_perform(op),
@@ -151,7 +135,39 @@ impl Machine {
                 _ => unreachable!(),
             }
         } else {
-            Err(MachineError::UnrecognizedInsts)
+            Err(RegisterError::UnmatchedContentType {
+                reg_name: "pc".to_string(),
+                type_name: "usize".to_string(),
+            })?
+        }
+    }
+
+    fn advance_pc(&mut self) -> MResult<&'static str> {
+        if let Value::Pointer(value) = *self.pc.get() {
+            self.pc.set(Value::Pointer(value + 1));
+            Ok("Done")
+        } else {
+            Err(RegisterError::UnmatchedContentType {
+                reg_name: "pc".to_string(),
+                type_name: "usize".to_string(),
+            })?
+        }
+    }
+
+    fn get_register_content(&self, reg_name: &String) -> MResult<Value> {
+        if let Some(reg) = self.register_table.get(reg_name) {
+            Ok(reg.get().clone())
+        } else {
+            Err(RegisterError::LookupFailure(reg_name.to_string()))?
+        }
+    }
+
+    fn set_register_content(&mut self, reg_name: &String, value: Value) -> MResult<&'static str> {
+        if let Some(reg) = self.register_table.get_mut(reg_name) {
+            reg.set(value);
+            Ok("Done")
+        } else {
+            Err(RegisterError::LookupFailure(reg_name.to_string()))?
         }
     }
 
@@ -160,16 +176,44 @@ impl Machine {
         reg_name: String,
         operation: Arc<RMLNode>,
     ) -> MResult<&'static str> {
-        unimplemented!()
+        match &*operation {
+            RMLNode::Reg(name) => {
+                let value = self.get_register_content(name)?;
+                self.set_register_content(&reg_name, value)?;
+            }
+            RMLNode::Num(n) => {
+                self.set_register_content(&reg_name, Value::Integer(*n))?;
+            }
+            RMLNode::Label(s) | RMLNode::Str(s) | RMLNode::Symbol(s) => {
+                self.set_register_content(&reg_name, Value::String(s.to_string()))?;
+            }
+            RMLNode::List(l) => {
+                self.set_register_content(
+                    &reg_name,
+                    Value::Compound(CompoundValue::new(l.clone())),
+                )?;
+            }
+            RMLNode::Operation(op_name, args) => {
+                let value = self.execute_operation(&op_name, &args)?;
+                self.set_register_content(&reg_name, value)?;
+            }
+            _ => unreachable!(),
+        }
+        self.advance_pc()?;
+        Ok("Done")
     }
 
     fn extract_label_name(&self, label: Arc<RMLNode>) -> MResult<String> {
         match &*label {
             RMLNode::Reg(reg_name) => {
-                if let Some(label) = self.get_register(reg_name)?.downcast_ref::<String>() {
+                let value = self.get_register_content(reg_name)?;
+                if let Value::String(label) = value {
                     Ok(label.to_string())
                 } else {
-                    Err(RegisterError::UnmatchedContentType("String".into()))?
+                    Err(RegisterError::UnmatchedContentType {
+                        reg_name: reg_name.to_string(),
+                        type_name: "String".into(),
+                    })?
                 }
             }
             RMLNode::Label(label_name) => Ok(label_name.to_string()),
@@ -202,6 +246,10 @@ impl Machine {
     fn execute_test(&mut self, operation: Arc<RMLNode>) -> MResult<&'static str> {
         unimplemented!()
     }
+
+    fn execute_operation(&self, op_name: &String, args: &Vec<RMLNode>) -> MResult<Value> {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
@@ -214,24 +262,6 @@ mod machine_tests {
         assert!(m.stack.is_empty());
         assert_eq!(m.total_registers(), 2);
         assert_eq!(m.total_operations(), 2);
-    }
-
-    #[test]
-    fn test_get_register() {
-        let m = Machine::new();
-        let expected = "*unassigned*".to_string();
-        let actual = m.get_register("pc");
-        assert!(actual.is_ok());
-        let actual = actual.unwrap();
-        assert_eq!(Some(&expected), actual.as_ref().downcast_ref::<String>());
-
-        match m.get_register("not-found") {
-            Err(e) => assert_eq!(
-                MachineError::RegisterError(RegisterError::LookupFailure("not-found".to_string())),
-                e,
-            ),
-            _ => (),
-        };
     }
 
     #[test]
@@ -251,7 +281,7 @@ mod machine_tests {
 
     #[test]
     fn test_builtin_operations() {
-        let expected = Value::new("done".to_string());
+        let expected = Value::new("Done".to_string());
         let mut m = Machine::new();
         let res = m.call_operation("print-stack-statistics", vec![]);
         assert!(res.is_ok());
@@ -300,6 +330,31 @@ mod machine_tests {
     fn test_start_method() {
         let mut m = Machine::new();
         let res = m.start();
-        assert_eq!(Ok("done"), res);
+        assert_eq!(Ok("Done"), res);
+    }
+
+    #[test]
+    fn test_advance_pc() {
+        let mut m = Machine::new();
+        m.pc.set(Value::Pointer(0));
+        let res = m.advance_pc();
+        assert_eq!(Ok("Done"), res);
+        let actual = m.pc.get();
+        assert_eq!(Value::Pointer(1), *actual);
+    }
+
+    #[test]
+    fn test_manipulate_register_content() {
+        let mut m = Machine::new();
+        let name = String::from("test");
+        let res = m.allocate_register(&name);
+        assert_eq!(Ok("register-allocated"), res);
+
+        let actual = m.get_register_content(&name);
+        assert_eq!(Ok(Value::String("*unassigned*".to_string())), actual);
+        let res = m.set_register_content(&name, Value::Integer(1));
+        assert_eq!(Ok("Done"), res);
+        let actual = m.get_register_content(&name);
+        assert_eq!(Ok(Value::Integer(1)), actual);
     }
 }

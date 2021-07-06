@@ -1,31 +1,25 @@
 //! A register structure to save something.
 
-use std::any::Any;
-use std::sync::Arc;
+use super::value::Value;
 
-use super::BaseType;
-
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Register {
-    contents: BaseType,
+    contents: Value,
 }
 
 impl Register {
     pub fn new() -> Self {
         Self {
-            contents: Arc::new(String::from("*unassigned*")),
+            contents: Value::String("*unassigned*".into()),
         }
     }
 
-    pub fn get(&self) -> BaseType {
-        Arc::clone(&self.contents)
+    pub fn get(&self) -> &Value {
+        &self.contents
     }
 
-    pub fn set<T>(&mut self, value: T)
-    where
-        T: Any + Send + Sync,
-    {
-        self.contents = Arc::new(value);
+    pub fn set(&mut self, value: Value) {
+        self.contents = value;
     }
 }
 
@@ -36,17 +30,17 @@ mod register_tests {
     #[test]
     fn test_get_register_contents() {
         let reg: Register = Register::new();
-        let expected = Arc::new(String::from("*unassigned*"));
+        let expected = Value::String("*unassigned*".into());
         let actual = reg.get();
-        assert_eq!(expected, actual.downcast::<String>().unwrap());
+        assert_eq!(&expected, actual);
     }
 
     #[test]
     fn test_set_register_contents() {
         let mut reg: Register = Register::new();
-        let expected: i32 = 12345678;
-        reg.set(expected);
+        let expected = Value::Integer(12345678);
+        reg.set(expected.clone());
         let actual = reg.get();
-        assert_eq!(Arc::new(expected), actual.downcast::<i32>().unwrap());
+        assert_eq!(&expected, actual);
     }
 }
