@@ -78,6 +78,6 @@ pub enum RegisterError {
     LookupFailure(String),
     #[error("Multiply defined register: {0}")]
     AllocateFailure(String),
-    #[error("Unmatched register content type, expected {0}")]
-    UnmatchedContentType(String),
+    #[error("Unmatched content type in register {reg_name}, expected {type_name}")]
+    UnmatchedContentType { reg_name: String, type_name: String },
 }
