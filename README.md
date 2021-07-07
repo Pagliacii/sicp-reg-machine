@@ -41,3 +41,25 @@ Valid kinds of constant value:
 - `(const abc)` is the symbol `abc`,
 - `(const (a b c))` is the list `(a b c)`,
 - and `(const ())` is the empty list.
+
+## Machines
+
+| Machines  | Details                                                                                                                                                                            | Code                                 |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| Fibonacci | See [Section 5.1.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e4) and [Figure 5.12](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e12) | [fibonacci.rs](src/bin/fibonacci.rs) |
+| GCD V1    | See [Section 5.1.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e1)                                                                                         | [gcd.rs](src/bin/gcd.rs)             |
+
+## Running
+
+```shell
+$ git clone https://github.com/Pagliacii/sicp-reg-machine
+$ cd sicp-reg-machine
+# Running default machine - fibonacci
+$ cargo run
+# Or running specified one
+$ cargo run --bin gcd
+```
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
