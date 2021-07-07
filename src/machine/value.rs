@@ -13,6 +13,7 @@ use super::errors::{MResult, MachineError, TypeError};
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Integer(i32),
+    BigNum(u64),
     Pointer(usize),
     String(String),
     Boolean(bool),
@@ -24,6 +25,7 @@ impl From<Value> for String {
         match item {
             Value::Boolean(b) => format!("Boolean ({})", b),
             Value::Integer(i) => format!("Integer ({})", i),
+            Value::BigNum(n) => format!("BigNum ({})", n),
             Value::Pointer(p) => format!("Pointer ({})", p),
             Value::String(s) => format!("String ({})", s),
             Value::Compound(c) => c.to_string(),
@@ -47,6 +49,8 @@ impl Value {
             Self::Integer(*(&val as &dyn Any).downcast_ref::<i32>().unwrap())
         } else if TypeId::of::<usize>() == type_id {
             Self::Pointer(*(&val as &dyn Any).downcast_ref::<usize>().unwrap())
+        } else if TypeId::of::<u64>() == type_id {
+            Self::BigNum(*(&val as &dyn Any).downcast_ref::<u64>().unwrap())
         } else if TypeId::of::<bool>() == type_id {
             Self::Boolean(*(&val as &dyn Any).downcast_ref::<bool>().unwrap())
         } else if TypeId::of::<String>() == type_id {
@@ -100,14 +104,30 @@ impl FromValue for i32 {
 impl FromValue for usize {
     fn from_value(val: Value) -> MResult<Self> {
         match val {
-            Value::Integer(i) => Ok(i as usize),
             Value::Pointer(p) => Ok(p),
+            Value::Integer(i) => Ok(i as usize),
             Value::String(s) => s.parse::<usize>().map_err(|_| MachineError::ConvertError {
                 value: s,
                 src: "String".to_string(),
                 dst: "usize".to_string(),
             }),
-            _ => Err(TypeError::expected("i32").got(val))?,
+            _ => Err(TypeError::expected("usize").got(val))?,
+        }
+    }
+}
+
+impl FromValue for u64 {
+    fn from_value(val: Value) -> MResult<Self> {
+        match val {
+            Value::BigNum(n) => Ok(n),
+            Value::Integer(i) => Ok(i as u64),
+            Value::Pointer(p) => Ok(p as u64),
+            Value::String(s) => s.parse::<u64>().map_err(|_| MachineError::ConvertError {
+                value: s,
+                src: "String".to_string(),
+                dst: "u64".to_string(),
+            }),
+            _ => Err(TypeError::expected("u64").got(val))?,
         }
     }
 }
@@ -259,9 +279,11 @@ mod value_mod_tests {
         let h = Value::String(String::from("World"));
         let i = Value::new(CompoundValue::new(1));
         let j = Value::Compound(CompoundValue::new("hello"));
+        let k = Value::new(4294967296u64);
+        let l = Value::BigNum(4294967296);
         // Comparing Value::Integer tests
         compare_value(&a, &b);
-        // Comparing Value::Float tests
+        // Comparing Value::Pointer tests
         compare_value(&c, &d);
         // Comparing Value::Boolean tests
         compare_value(&e, &f);
@@ -272,6 +294,8 @@ mod value_mod_tests {
         // Comparing Value::Integer and Value::Float
         assert_ne!(a, c);
         assert_ne!(d, b);
+        // Comparing Value::BigNum
+        assert_eq!(k, l);
     }
 
     #[test]
@@ -326,6 +350,11 @@ mod value_mod_tests {
         let ss = String::from_value(s);
         assert!(ss.is_ok());
         assert_eq!("hello".to_string(), ss.unwrap());
+
+        let n = Value::new(4294967296u64);
+        let nn = u64::from_value(n);
+        assert!(nn.is_ok());
+        assert_eq!(4294967296, nn.unwrap());
     }
 
     #[test]
