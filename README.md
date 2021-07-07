@@ -44,10 +44,10 @@ Valid kinds of constant value:
 
 ## Machines
 
-| Machines  | Details                                                                                                                                                                            | Code                                 |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| Fibonacci | See [Section 5.1.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e4) and [Figure 5.12](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e12) | [fibonacci.rs](src/bin/fibonacci.rs) |
-| GCD V1    | See [Section 5.1.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e1)                                                                                         | [gcd.rs](src/bin/gcd.rs)             |
+| Machines  | Details                                                                                                                                                                            | Code                                  |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Fibonacci | See [Section 5.1.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e4) and [Figure 5.12](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e12) | [fibonacci.rs](examples/fibonacci.rs) |
+| GCD V1    | See [Section 5.1.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e1)                                                                                         | [gcd.rs](examples/gcd.rs)             |
 
 ## Running
 
