@@ -1,6 +1,6 @@
 use std::{
     any::{type_name, Any, TypeId},
-    convert::{From, TryFrom},
+    convert::From,
     fmt::{self, Debug, Display, Formatter},
     sync::Arc,
 };
@@ -73,28 +73,54 @@ impl FromValue for Value {
     }
 }
 
-macro_rules! from_value_to {
-    ( $src:tt $dst:ty ) => {
-        impl FromValue for $dst {
-            fn from_value(val: Value) -> MResult<Self> {
-                if let Value::$src(v) = val {
-                    <$dst>::try_from(v.clone()).map_err(|_| {
-                        TypeError::expected(stringify!($dst))
-                            .got(v.to_string())
-                            .into()
-                    })
-                } else {
-                    Err(TypeError::expected(stringify!($dst)).got(val))?
-                }
-            }
+impl FromValue for bool {
+    fn from_value(val: Value) -> MResult<Self> {
+        match val {
+            Value::Boolean(v) => Ok(v),
+            Value::String(s) => Ok(s == "true".to_string()),
+            _ => Err(TypeError::expected("bool").got(val))?,
         }
-    };
+    }
 }
 
-from_value_to! { Boolean bool }
-from_value_to! { Integer i32 }
-from_value_to! { Pointer usize }
-from_value_to! { String String }
+impl FromValue for i32 {
+    fn from_value(val: Value) -> MResult<Self> {
+        match val {
+            Value::Integer(i) => Ok(i),
+            Value::String(s) => s.parse::<i32>().map_err(|_| MachineError::ConvertError {
+                value: s,
+                src: "String".to_string(),
+                dst: "i32".to_string(),
+            }),
+            _ => Err(TypeError::expected("i32").got(val))?,
+        }
+    }
+}
+
+impl FromValue for usize {
+    fn from_value(val: Value) -> MResult<Self> {
+        match val {
+            Value::Integer(i) => Ok(i as usize),
+            Value::Pointer(p) => Ok(p),
+            Value::String(s) => s.parse::<usize>().map_err(|_| MachineError::ConvertError {
+                value: s,
+                src: "String".to_string(),
+                dst: "usize".to_string(),
+            }),
+            _ => Err(TypeError::expected("i32").got(val))?,
+        }
+    }
+}
+
+impl FromValue for String {
+    fn from_value(val: Value) -> MResult<Self> {
+        if let Value::String(s) = val {
+            Ok(s.clone())
+        } else {
+            Err(TypeError::expected(stringify!($dst)).got(val))?
+        }
+    }
+}
 
 /// Convert Vec<Value> to designated types.
 pub trait FromValueList {

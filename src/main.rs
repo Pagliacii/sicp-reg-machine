@@ -32,5 +32,5 @@ fn main() {
     let controller_text = fs::read_to_string("./tests/rml_insts.scm").unwrap();
     let mut machine =
         make_machine(vec!["continue", "n", "val"], &operations, &controller_text).unwrap();
-    println!("{}", machine.start().unwrap());
+    assert_eq!(Ok("Done"), machine.start());
 }
