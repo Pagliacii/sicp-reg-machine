@@ -1,6 +1,7 @@
 mod assemble;
-mod machine;
 mod parser;
+
+pub mod machine;
 
 use assemble::assemble;
 use machine::Operations;
@@ -11,7 +12,7 @@ use machine::{
 
 /// Constructs and returns a model of the machine with
 /// the given registers, operations, and controller.
-pub fn make_machine<F, Args, R>(
+pub fn make_machine(
     register_names: Vec<&str>,
     operations: &Operations,
     controller_text: &str,

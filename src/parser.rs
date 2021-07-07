@@ -1,5 +1,6 @@
 //! A parser of the register machine language.
 
+use std::fmt;
 use std::sync::Arc;
 
 use nom::{
@@ -25,11 +26,47 @@ pub enum RMLNode {
     Operation(String, Vec<RMLNode>),
     PerformOp(Arc<RMLNode>),
     Reg(String),
-    RestoreFrom(String),
-    SaveTo(String),
+    Restore(String),
+    Save(String),
     Str(String),
     Symbol(String),
     TestOp(Arc<RMLNode>),
+}
+
+impl fmt::Display for RMLNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RMLNode::Assignment(reg, val) => write!(f, "(assign {} {})", reg, val.to_string()),
+            RMLNode::Branch(label) => write!(f, "(branch {})", label.to_string()),
+            RMLNode::GotoLabel(label) => write!(f, "(goto {})", label.to_string()),
+            RMLNode::List(l) => write!(
+                f,
+                "(const ({}))",
+                l.iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+            RMLNode::Label(label) => write!(f, "(label {})", label),
+            RMLNode::Num(n) => write!(f, "(const {})", n),
+            RMLNode::Operation(op_name, args) => write!(
+                f,
+                "(op {}) {}",
+                op_name,
+                args.iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+            RMLNode::PerformOp(op) => write!(f, "(perform {})", op.to_string()),
+            RMLNode::Reg(reg) => write!(f, "(reg {})", reg),
+            RMLNode::Restore(reg) => write!(f, "(restore {})", reg),
+            RMLNode::Save(reg) => write!(f, "(save {})", reg),
+            RMLNode::Str(s) => write!(f, r#"(const "{}")"#, s),
+            RMLNode::Symbol(s) => write!(f, "(const {})", s),
+            RMLNode::TestOp(op) => write!(f, "(test {})", op.to_string()),
+        }
+    }
 }
 
 /// RML Parse Error
@@ -302,8 +339,8 @@ fn rml_save_and_restore(input: &str) -> RMLResult<&str, RMLNode> {
         sce(char(')')),
     );
     map(parser, |(inst, reg)| match inst {
-        "restore" => RMLNode::RestoreFrom(reg.into()),
-        "save" => RMLNode::SaveTo(reg.into()),
+        "restore" => RMLNode::Restore(reg.into()),
+        "save" => RMLNode::Save(reg.into()),
         _ => unreachable!(),
     })(input)
 }
@@ -568,11 +605,11 @@ mod parser_tests {
     #[test]
     fn test_rml_save_and_restore() {
         assert_eq!(
-            Ok(("", RMLNode::SaveTo("a".into()))),
+            Ok(("", RMLNode::Save("a".into()))),
             rml_save_and_restore("(save a)")
         );
         assert_eq!(
-            Ok(("", RMLNode::RestoreFrom("a".into()))),
+            Ok(("", RMLNode::Restore("a".into()))),
             rml_save_and_restore("(restore a)")
         );
     }
@@ -686,12 +723,12 @@ mod parser_tests {
                     vec![RMLNode::Reg("n".into()), RMLNode::Num(2)]
                 ))),
                 RMLNode::Branch(Arc::new(RMLNode::Label("immediate-answer".into()))),
-                RMLNode::SaveTo("continue".into()),
+                RMLNode::Save("continue".into()),
                 RMLNode::Assignment(
                     "continue".into(),
                     Arc::new(RMLNode::Label("afterfib-n-1".into()))
                 ),
-                RMLNode::SaveTo("n".into()),
+                RMLNode::Save("n".into()),
                 RMLNode::Assignment(
                     "n".into(),
                     Arc::new(RMLNode::Operation(
@@ -701,8 +738,8 @@ mod parser_tests {
                 ),
                 RMLNode::GotoLabel(Arc::new(RMLNode::Label("fib-loop".into()))),
                 RMLNode::Symbol("afterfib-n-1".into()),
-                RMLNode::RestoreFrom("n".into()),
-                RMLNode::RestoreFrom("continue".into()),
+                RMLNode::Restore("n".into()),
+                RMLNode::Restore("continue".into()),
                 RMLNode::Assignment(
                     "n".into(),
                     Arc::new(RMLNode::Operation(
@@ -710,17 +747,17 @@ mod parser_tests {
                         vec![RMLNode::Reg("n".into()), RMLNode::Num(2)]
                     ))
                 ),
-                RMLNode::SaveTo("continue".into()),
+                RMLNode::Save("continue".into()),
                 RMLNode::Assignment(
                     "continue".into(),
                     Arc::new(RMLNode::Label("afterfib-n-2".into()))
                 ),
-                RMLNode::SaveTo("val".into()),
+                RMLNode::Save("val".into()),
                 RMLNode::GotoLabel(Arc::new(RMLNode::Label("fib-loop".into()))),
                 RMLNode::Symbol("afterfib-n-2".into()),
                 RMLNode::Assignment("n".into(), Arc::new(RMLNode::Reg("val".into()))),
-                RMLNode::RestoreFrom("val".into()),
-                RMLNode::RestoreFrom("continue".into()),
+                RMLNode::Restore("val".into()),
+                RMLNode::Restore("continue".into()),
                 RMLNode::Assignment(
                     "val".into(),
                     Arc::new(RMLNode::Operation(
