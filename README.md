@@ -63,3 +63,11 @@ $ cargo run --example <machine-name>
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+
+## Acknowledgments
+
+- Sam Scott - [Building a runtime reflection system for Rust 🦀️](https://www.osohq.com/post/rust-reflection-pt-1)
+- Michael-F-Bryan - [How could I implement a more accurate comparison?](https://users.rust-lang.org/t/how-could-i-implement-a-more-accurate-comparison/61698/6)
+- H2CO3 - [How to use a HashMap to store a struct method?](https://users.rust-lang.org/t/how-to-use-a-hashmap-to-store-a-struct-method/61726/2)
+- Geoffroy Couprie - [Geal/nom](https://github.com/Geal/nom)
+- code and bitters - [Learning Rust: Let's Build a Parser!](https://codeandbitters.com/lets-build-a-parser/)
