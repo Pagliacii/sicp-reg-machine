@@ -114,10 +114,12 @@ impl FromValue for usize {
 
 impl FromValue for String {
     fn from_value(val: Value) -> MResult<Self> {
-        if let Value::String(s) = val {
-            Ok(s.clone())
-        } else {
-            Err(TypeError::expected(stringify!($dst)).got(val))?
+        match val {
+            Value::Boolean(v) => Ok(v.to_string()),
+            Value::Integer(v) => Ok(v.to_string()),
+            Value::Pointer(v) => Ok(v.to_string()),
+            Value::String(v) => Ok(v.to_string()),
+            _ => Err(TypeError::expected("String").got(val))?,
         }
     }
 }
