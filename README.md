@@ -48,6 +48,7 @@ Valid kinds of constant value:
 | --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | Fibonacci | See [Section 5.1.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e4) and [Figure 5.12](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e12)  | [fibonacci.rs](examples/fibonacci.rs) |
 | GCD V1    | See [Section 5.1.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e1)                                                                                          | [gcd.rs](examples/gcd.rs)             |
+| GCD V2    | See [Figure 5.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e4)                                                                                               | [gcd_v2.rs](examples/gcd_v2.rs)       |
 | Factorial | See [Exercise 5.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e1) and [Exercise 5.2](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e2) | [factorial.rs](examples/factorial.rs) |
 
 ## Running
