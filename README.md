@@ -44,10 +44,11 @@ Valid kinds of constant value:
 
 ## Machines
 
-| Machines  | Details                                                                                                                                                                            | Code                                  |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| Fibonacci | See [Section 5.1.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e4) and [Figure 5.12](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e12) | [fibonacci.rs](examples/fibonacci.rs) |
-| GCD V1    | See [Section 5.1.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e1)                                                                                         | [gcd.rs](examples/gcd.rs)             |
+| Machines  | Details                                                                                                                                                                             | Code                                  |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| Fibonacci | See [Section 5.1.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e4) and [Figure 5.12](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e12)  | [fibonacci.rs](examples/fibonacci.rs) |
+| GCD V1    | See [Section 5.1.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e1)                                                                                          | [gcd.rs](examples/gcd.rs)             |
+| Factorial | See [Exercise 5.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e1) and [Exercise 5.2](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e2) | [factorial.rs](examples/factorial.rs) |
 
 ## Running
 
