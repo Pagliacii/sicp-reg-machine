@@ -73,6 +73,29 @@ impl Machine {
         }
     }
 
+    pub fn get_register_content<S: Into<String>>(&self, reg_name: S) -> MResult<Value> {
+        let reg_name = reg_name.into();
+        if let Some(reg) = self.register_table.get(&reg_name) {
+            Ok(reg.get().clone())
+        } else {
+            Err(RegisterError::LookupFailure(reg_name))?
+        }
+    }
+
+    pub fn set_register_content<S: Into<String>>(
+        &mut self,
+        reg_name: S,
+        value: Value,
+    ) -> MResult<&'static str> {
+        let reg_name = reg_name.into();
+        if let Some(reg) = self.register_table.get_mut(&reg_name) {
+            reg.set(value);
+            Ok("Done")
+        } else {
+            Err(RegisterError::LookupFailure(reg_name))?
+        }
+    }
+
     pub fn total_registers(&self) -> usize {
         self.register_table.len() + 2
     }
@@ -140,13 +163,12 @@ impl Machine {
                     _ => unreachable!(),
                 };
             } else {
-                break;
+                return Err(RegisterError::UnmatchedContentType {
+                    reg_name: "pc".to_string(),
+                    type_name: "usize".to_string(),
+                })?;
             }
         }
-        Err(RegisterError::UnmatchedContentType {
-            reg_name: "pc".to_string(),
-            type_name: "usize".to_string(),
-        })?
     }
 
     fn advance_pc(&mut self) -> MResult<&'static str> {
@@ -163,23 +185,6 @@ impl Machine {
 
     fn reset_pc(&mut self) {
         self.pc.set(Value::Pointer(0));
-    }
-
-    fn get_register_content(&self, reg_name: &String) -> MResult<Value> {
-        if let Some(reg) = self.register_table.get(reg_name) {
-            Ok(reg.get().clone())
-        } else {
-            Err(RegisterError::LookupFailure(reg_name.to_string()))?
-        }
-    }
-
-    fn set_register_content(&mut self, reg_name: &String, value: Value) -> MResult<&'static str> {
-        if let Some(reg) = self.register_table.get_mut(reg_name) {
-            reg.set(value);
-            Ok("Done")
-        } else {
-            Err(RegisterError::LookupFailure(reg_name.to_string()))?
-        }
     }
 
     fn execute_assignment(
@@ -297,7 +302,12 @@ impl Machine {
         }
     }
 
-    fn perform_operation(&mut self, op_name: &String, args: &Vec<RMLNode>) -> MResult<Value> {
+    fn perform_operation<S: Into<String>>(
+        &mut self,
+        op_name: S,
+        args: &Vec<RMLNode>,
+    ) -> MResult<Value> {
+        let op_name = op_name.into();
         let mut op_args: Vec<Value> = vec![];
         for arg in args.iter() {
             match arg {

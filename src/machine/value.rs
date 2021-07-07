@@ -1,7 +1,7 @@
 use std::{
     any::{type_name, Any, TypeId},
     convert::From,
-    fmt::{self, Debug, Display, Formatter},
+    fmt,
     sync::Arc,
 };
 
@@ -31,16 +31,16 @@ impl From<Value> for String {
     }
 }
 
-impl Display for Value {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", String::from(self.clone()))
     }
 }
 
 impl Value {
     pub fn new<T>(val: T) -> Self
     where
-        T: Any + Debug + PartialEq + Send + Sync,
+        T: Any + fmt::Debug + PartialEq + Send + Sync,
     {
         let type_id = val.type_id();
         if TypeId::of::<i32>() == type_id {
@@ -156,14 +156,14 @@ pub struct CompoundValue {
     vtable: VTable,
 }
 
-impl Debug for CompoundValue {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+impl fmt::Debug for CompoundValue {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "CompoundValue<{}>", self.vtable.type_name)
     }
 }
 
-impl Display for CompoundValue {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl fmt::Display for CompoundValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "CompoundValue({:?})", (self.vtable.debug)(&*self.inner))
     }
 }
@@ -187,7 +187,7 @@ impl FromValue for CompoundValue {
 impl CompoundValue {
     pub fn new<T>(result: T) -> Self
     where
-        T: Any + Debug + PartialEq + Send + Sync,
+        T: Any + fmt::Debug + PartialEq + Send + Sync,
     {
         Self {
             inner: Arc::new(result),
@@ -215,18 +215,18 @@ impl CompoundValue {
 #[derive(Copy, Clone)]
 struct VTable {
     type_name: &'static str,
-    debug: fn(&dyn Any) -> &dyn Debug,
+    debug: fn(&dyn Any) -> &dyn fmt::Debug,
     partial_eq: fn(&dyn Any, &dyn Any) -> bool,
 }
 
 impl VTable {
     fn for_type<T>() -> Self
     where
-        T: Any + Debug + PartialEq + 'static,
+        T: Any + fmt::Debug + PartialEq + 'static,
     {
         Self {
             type_name: type_name::<T>(),
-            debug: |value: &dyn Any| -> &dyn Debug { value.downcast_ref::<T>().unwrap() },
+            debug: |value: &dyn Any| -> &dyn fmt::Debug { value.downcast_ref::<T>().unwrap() },
             partial_eq: |left: &dyn Any, right: &dyn Any| -> bool {
                 match (left.downcast_ref::<T>(), right.downcast_ref::<T>()) {
                     (Some(l), Some(r)) => l == r,
