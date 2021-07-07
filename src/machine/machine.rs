@@ -122,29 +122,31 @@ impl Machine {
     }
 
     pub fn execute(&mut self) -> MResult<&'static str> {
-        if let Value::Pointer(pointer) = *self.pc.get() {
-            if pointer == self.the_inst_seq.len() {
-                return Ok("Done");
-            } else if pointer > self.the_inst_seq.len() {
-                return Err(MachineError::NoMoreInsts);
+        loop {
+            if let Value::Pointer(pointer) = *self.pc.get() {
+                if pointer == self.the_inst_seq.len() {
+                    return Ok("Done");
+                } else if pointer > self.the_inst_seq.len() {
+                    return Err(MachineError::NoMoreInsts);
+                }
+                match self.the_inst_seq[pointer].clone() {
+                    RMLNode::Assignment(reg_name, op) => self.execute_assignment(reg_name, op)?,
+                    RMLNode::Branch(label) => self.execute_branch(label)?,
+                    RMLNode::GotoLabel(label) => self.execute_goto(label)?,
+                    RMLNode::PerformOp(op) => self.execute_perform(op)?,
+                    RMLNode::Restore(reg_name) => self.execute_restore(reg_name)?,
+                    RMLNode::Save(reg_name) => self.execute_save(reg_name)?,
+                    RMLNode::TestOp(op) => self.execute_test(op)?,
+                    _ => unreachable!(),
+                };
+            } else {
+                break;
             }
-            match self.the_inst_seq[pointer].clone() {
-                RMLNode::Assignment(reg_name, op) => self.execute_assignment(reg_name, op)?,
-                RMLNode::Branch(label) => self.execute_branch(label)?,
-                RMLNode::GotoLabel(label) => self.execute_goto(label)?,
-                RMLNode::PerformOp(op) => self.execute_perform(op)?,
-                RMLNode::Restore(reg_name) => self.execute_restore(reg_name)?,
-                RMLNode::Save(reg_name) => self.execute_save(reg_name)?,
-                RMLNode::TestOp(op) => self.execute_test(op)?,
-                _ => unreachable!(),
-            };
-            self.execute()
-        } else {
-            Err(RegisterError::UnmatchedContentType {
-                reg_name: "pc".to_string(),
-                type_name: "usize".to_string(),
-            })?
         }
+        Err(RegisterError::UnmatchedContentType {
+            reg_name: "pc".to_string(),
+            type_name: "usize".to_string(),
+        })?
     }
 
     fn advance_pc(&mut self) -> MResult<&'static str> {
