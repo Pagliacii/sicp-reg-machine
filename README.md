@@ -54,10 +54,10 @@ Valid kinds of constant value:
 ```shell
 $ git clone https://github.com/Pagliacii/sicp-reg-machine
 $ cd sicp-reg-machine
-# Running default machine - fibonacci
-$ cargo run
-# Or running specified one
-$ cargo run --bin gcd
+# List all machines
+$ ls examples
+# Running machine
+$ cargo run --example <machine-name>
 ```
 
 ## License
