@@ -14,7 +14,13 @@ const CONTROLLER_TEXT: &str = r#"
  test-b
    (test (op =) (reg b) (const 0))
    (branch (label gcd-done))
-   (assign t (op rem) (reg a) (reg b))
+   (assign t (reg a))
+ rem-loop
+   (test (op <) (reg t) (reg b))
+   (branch (label rem-done))
+   (assign t (op -) (reg t) (reg b))
+   (goto (label rem-loop))
+ rem-done
    (assign a (reg b))
    (assign b (reg t))
    (goto (label test-b))
@@ -24,7 +30,8 @@ const CONTROLLER_TEXT: &str = r#"
 fn operations() -> Operations {
     let mut operations: Operations = HashMap::new();
     operations.insert("=", Operation::new(|a: i32, b: i32| a == b));
-    operations.insert("rem", Operation::new(|a: i32, b: i32| a % b));
+    operations.insert("<", Operation::new(|a: i32, b: i32| a < b));
+    operations.insert("-", Operation::new(|a: i32, b: i32| a - b));
     operations
 }
 

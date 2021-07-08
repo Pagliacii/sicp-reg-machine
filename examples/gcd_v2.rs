@@ -40,7 +40,7 @@ fn read_line_buffer() -> String {
 
 fn operations() -> Operations {
     let mut operations: Operations = HashMap::new();
-    operations.insert("=", Operation::new(|b: i32| 0 == b));
+    operations.insert("=", Operation::new(|a: i32, b: i32| a == b));
     operations.insert("rem", Operation::new(|a: i32, b: i32| a % b));
     operations.insert("read", Operation::new(read_line_buffer));
     operations.insert("print", Operation::new(|a: i32| println!("{}", a)));
