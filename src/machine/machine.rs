@@ -200,6 +200,9 @@ impl Machine {
             RMLNode::Num(n) => {
                 self.set_register_content(&reg_name, Value::Integer(*n))?;
             }
+            RMLNode::Float(f) => {
+                self.set_register_content(&reg_name, Value::Float(*f))?;
+            }
             RMLNode::Label(s) | RMLNode::Str(s) | RMLNode::Symbol(s) => {
                 self.set_register_content(&reg_name, Value::String(s.to_string()))?;
             }
@@ -316,6 +319,7 @@ impl Machine {
                     op_args.push(value);
                 }
                 RMLNode::Num(i) => op_args.push(Value::Integer(*i)),
+                RMLNode::Float(f) => op_args.push(Value::Float(*f)),
                 RMLNode::Str(s) | RMLNode::Symbol(s) => op_args.push(Value::String(s.to_string())),
                 RMLNode::List(l) => op_args.push(Value::Compound(CompoundValue::new(l.clone()))),
                 _ => unreachable!(),
