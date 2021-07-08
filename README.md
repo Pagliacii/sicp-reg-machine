@@ -45,7 +45,7 @@ Valid kinds of constant value:
 
 ## Machines
 
-| Machines  | Details                                                                                                                                                                              | Code                                  |
+| Machine   | Details                                                                                                                                                                              | Code                                  |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
 | Fibonacci | See [Section 5.1.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e4) and [Figure 5.12](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e12)   | [fibonacci.rs](examples/fibonacci.rs) |
 | GCD V1    | See [Section 5.1.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1_002e1)                                                                                           | [gcd.rs](examples/gcd.rs)             |
@@ -53,6 +53,7 @@ Valid kinds of constant value:
 | GCD V3    | See [Figure 5.5](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e5) and [Figure 5.6](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Figure-5_002e6)          | [gcd_v3.rs](examples/gcd_v3.rs)       |
 | Factorial | See [Exercise 5.1](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e1) and [Exercise 5.2](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e2)  | [factorial.rs](examples/factorial.rs) |
 | Newton V1 | See [Exercise 5.3](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e3) and [Section 1.1.7](https://sarabander.github.io/sicp/html/1_002e1.xhtml#g_t1_002e1_002e7) | [newton.rs](examples/newton.rs)       |
+| Newton V2 | See [Exercise 5.3](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e3) and [Section 1.1.7](https://sarabander.github.io/sicp/html/1_002e1.xhtml#g_t1_002e1_002e7) | [newton_v2.rs](examples/newton_v2.rs) |
 
 ## Running
 
