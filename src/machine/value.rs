@@ -13,6 +13,7 @@ use super::errors::{MResult, MachineError, TypeError};
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
     Integer(i32),
+    Float(f64),
     BigNum(u64),
     Pointer(usize),
     String(String),
@@ -25,6 +26,7 @@ impl From<Value> for String {
         match item {
             Value::Boolean(b) => format!("Boolean ({})", b),
             Value::Integer(i) => format!("Integer ({})", i),
+            Value::Float(f) => format!("Float ({})", f),
             Value::BigNum(n) => format!("BigNum ({})", n),
             Value::Pointer(p) => format!("Pointer ({})", p),
             Value::String(s) => format!("String ({})", s),
@@ -51,6 +53,8 @@ impl Value {
             Self::Pointer(*(&val as &dyn Any).downcast_ref::<usize>().unwrap())
         } else if TypeId::of::<u64>() == type_id {
             Self::BigNum(*(&val as &dyn Any).downcast_ref::<u64>().unwrap())
+        } else if TypeId::of::<f64>() == type_id {
+            Self::Float(*(&val as &dyn Any).downcast_ref::<f64>().unwrap())
         } else if TypeId::of::<bool>() == type_id {
             Self::Boolean(*(&val as &dyn Any).downcast_ref::<bool>().unwrap())
         } else if TypeId::of::<String>() == type_id {
@@ -91,6 +95,9 @@ impl FromValue for i32 {
     fn from_value(val: Value) -> MResult<Self> {
         match val {
             Value::Integer(i) => Ok(i),
+            Value::Pointer(p) => Ok(p as i32),
+            Value::Float(f) => Ok(f as i32),
+            Value::BigNum(b) => Ok(b as i32),
             Value::String(s) => s.parse::<i32>().map_err(|_| MachineError::ConvertError {
                 value: s,
                 src: "String".to_string(),
@@ -106,6 +113,8 @@ impl FromValue for usize {
         match val {
             Value::Pointer(p) => Ok(p),
             Value::Integer(i) => Ok(i as usize),
+            Value::Float(f) => Ok(f as usize),
+            Value::BigNum(b) => Ok(b as usize),
             Value::String(s) => s.parse::<usize>().map_err(|_| MachineError::ConvertError {
                 value: s,
                 src: "String".to_string(),
@@ -122,6 +131,7 @@ impl FromValue for u64 {
             Value::BigNum(n) => Ok(n),
             Value::Integer(i) => Ok(i as u64),
             Value::Pointer(p) => Ok(p as u64),
+            Value::Float(f) => Ok(f as u64),
             Value::String(s) => s.parse::<u64>().map_err(|_| MachineError::ConvertError {
                 value: s,
                 src: "String".to_string(),
@@ -132,12 +142,31 @@ impl FromValue for u64 {
     }
 }
 
+impl FromValue for f64 {
+    fn from_value(val: Value) -> MResult<Self> {
+        match val {
+            Value::Float(f) => Ok(f),
+            Value::BigNum(n) => Ok(n as f64),
+            Value::Integer(i) => Ok(i as f64),
+            Value::Pointer(p) => Ok(p as f64),
+            Value::String(s) => s.parse::<f64>().map_err(|_| MachineError::ConvertError {
+                value: s,
+                src: "String".to_string(),
+                dst: "f64".to_string(),
+            }),
+            _ => Err(TypeError::expected("f64").got(val))?,
+        }
+    }
+}
+
 impl FromValue for String {
     fn from_value(val: Value) -> MResult<Self> {
         match val {
             Value::Boolean(v) => Ok(v.to_string()),
             Value::Integer(v) => Ok(v.to_string()),
             Value::Pointer(v) => Ok(v.to_string()),
+            Value::BigNum(v) => Ok(v.to_string()),
+            Value::Float(v) => Ok(v.to_string()),
             Value::String(v) => Ok(v.to_string()),
             _ => Err(TypeError::expected("String").got(val))?,
         }
@@ -281,6 +310,8 @@ mod value_mod_tests {
         let j = Value::Compound(CompoundValue::new("hello"));
         let k = Value::new(4294967296u64);
         let l = Value::BigNum(4294967296);
+        let m = Value::new(1.0);
+        let n = Value::Float(1.5);
         // Comparing Value::Integer tests
         compare_value(&a, &b);
         // Comparing Value::Pointer tests
@@ -291,6 +322,8 @@ mod value_mod_tests {
         compare_value(&g, &h);
         // Comparing Value::Compound tests
         compare_value(&i, &j);
+        // Comparing Value::Float tests
+        compare_value(&m, &n);
         // Comparing Value::Integer and Value::Float
         assert_ne!(a, c);
         assert_ne!(d, b);
@@ -355,6 +388,11 @@ mod value_mod_tests {
         let nn = u64::from_value(n);
         assert!(nn.is_ok());
         assert_eq!(4294967296, nn.unwrap());
+
+        let f = Value::new(1.0);
+        let ff = f64::from_value(f);
+        assert!(ff.is_ok());
+        assert_eq!(1.0, ff.unwrap());
     }
 
     #[test]

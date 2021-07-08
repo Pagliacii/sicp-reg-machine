@@ -6,11 +6,11 @@ use std::sync::Arc;
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while, take_while1},
-    character::complete::{char, digit1, multispace0, multispace1, not_line_ending},
+    character::complete::{char, digit1, multispace0, not_line_ending},
     combinator::{all_consuming, map, opt, recognize, verify},
     error::{ErrorKind, ParseError},
-    multi::{many0, separated_list0},
-    sequence::{delimited, pair, preceded, terminated},
+    multi::many0,
+    sequence::{delimited, pair, preceded, terminated, tuple},
     IResult,
 };
 
@@ -20,6 +20,7 @@ pub enum RMLNode {
     Assignment(String, Arc<RMLNode>),
     Branch(Arc<RMLNode>),
     GotoLabel(Arc<RMLNode>),
+    Float(f64),
     List(Vec<RMLNode>),
     Label(String),
     Num(i32),
@@ -39,6 +40,7 @@ impl fmt::Display for RMLNode {
             RMLNode::Assignment(reg, val) => write!(f, "(assign {} {})", reg, val.to_string()),
             RMLNode::Branch(label) => write!(f, "(branch {})", label.to_string()),
             RMLNode::GotoLabel(label) => write!(f, "(goto {})", label.to_string()),
+            RMLNode::Float(fp) => write!(f, "(const {})", fp),
             RMLNode::List(l) => write!(
                 f,
                 "(const ({}))",
@@ -74,6 +76,8 @@ impl fmt::Display for RMLNode {
 pub enum RMLParseError {
     #[error("bad number")]
     BadNum,
+    #[error("bad float point number")]
+    BadFloatPoint,
     #[error("unknown parser error")]
     ParseFailure,
 }
@@ -125,8 +129,6 @@ fn rml_instructions(input: &str) -> RMLResult<&str, Vec<RMLNode>> {
 /// Single RML Instruction
 fn rml_instruction(input: &str) -> RMLResult<&str, RMLNode> {
     sce(alt((
-        rml_number,
-        rml_string,
         rml_symbol,
         rml_const,
         rml_label,
@@ -136,7 +138,6 @@ fn rml_instruction(input: &str) -> RMLResult<&str, RMLNode> {
         rml_save_and_restore,
         rml_apply_operation,
         rml_assign,
-        rml_list,
     )))(input)
 }
 
@@ -184,7 +185,9 @@ fn rml_string(input: &str) -> RMLResult<&str, RMLNode> {
 }
 
 fn const_value(input: &str) -> RMLResult<&str, RMLNode> {
-    sce(alt((rml_number, rml_symbol, rml_string, rml_list)))(input)
+    sce(alt((
+        rml_float, rml_number, rml_symbol, rml_string, rml_list,
+    )))(input)
 }
 
 /// RML Constant Value
@@ -213,15 +216,22 @@ fn rml_number(input: &str) -> RMLResult<&str, RMLNode> {
     }
 }
 
+/// RML Float Point Number
+///
+/// Valid syntax: -?\d+\.\d+
+fn rml_float(input: &str) -> RMLResult<&str, RMLNode> {
+    let (remain, float_num) = recognize(tuple((rml_number, char('.'), digit1)))(input)?;
+    match float_num.parse::<f64>() {
+        Ok(f) => Ok((remain, RMLNode::Float(f))),
+        Err(_) => Err(nom::Err::Failure(RMLParseError::BadFloatPoint)),
+    }
+}
+
 /// RML List
 ///
 /// Anything wrapped in double quotes.
 fn rml_list(input: &str) -> RMLResult<&str, RMLNode> {
-    let parser = delimited(
-        sce(char('(')),
-        separated_list0(multispace1, rml_symbol),
-        sce(char(')')),
-    );
+    let parser = delimited(sce(char('(')), many0(const_value), sce(char(')')));
     map(parser, |v| RMLNode::List(v))(input)
 }
 
@@ -437,6 +447,14 @@ mod parser_tests {
     }
 
     #[test]
+    fn test_rml_float() {
+        assert_eq!(Ok(("", RMLNode::Float(42.0))), rml_float("42.0"));
+        assert_eq!(Ok(("", RMLNode::Float(-42.0))), rml_float("-42.0"));
+        assert_eq!(Ok(("_", RMLNode::Float(42.0))), rml_float("42.0_"));
+        assert!(rml_float("_42.0").is_err());
+    }
+
+    #[test]
     fn test_rml_list() {
         assert_eq!(
             Ok((
@@ -461,6 +479,17 @@ mod parser_tests {
             rml_list("( a  b    c     )")
         );
         assert_eq!(Ok(("", RMLNode::List(vec![]))), rml_list("()"));
+        assert_eq!(
+            Ok((
+                "",
+                RMLNode::List(vec![
+                    RMLNode::Symbol("a".into()),
+                    RMLNode::Num(0),
+                    RMLNode::Float(1.0)
+                ])
+            )),
+            rml_list("(a 0 1.0)")
+        )
     }
 
     #[test]
@@ -474,6 +503,7 @@ mod parser_tests {
             rml_const("(const abc)")
         );
         assert_eq!(Ok(("", RMLNode::Num(42))), rml_const("(const 42)"));
+        assert_eq!(Ok(("", RMLNode::Float(42.0))), rml_const("(const 42.0)"));
         assert_eq!(
             Ok((
                 "",
@@ -663,7 +693,8 @@ mod parser_tests {
            ;;; comments
            (assign n (op read))  ; inline comment
            (test (op eq?) (reg n) (const q))
-           (branch (label done)))"#;
+           (branch (label done))
+           (assign m (const 42.0)))"#;
         let res = rml_instructions(instructions);
         assert_eq!(
             Ok((
@@ -679,6 +710,7 @@ mod parser_tests {
                         vec![RMLNode::Reg("n".into()), RMLNode::Symbol("q".into())]
                     ))),
                     RMLNode::Branch(Arc::new(RMLNode::Label("done".into()))),
+                    RMLNode::Assignment("m".into(), Arc::new(RMLNode::Float(42.0)))
                 ]
             )),
             res
