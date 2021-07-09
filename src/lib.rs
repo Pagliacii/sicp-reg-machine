@@ -1,7 +1,7 @@
 mod assemble;
-mod parser;
 
 pub mod machine;
+pub mod parser;
 
 use assemble::assemble;
 use machine::Operations;

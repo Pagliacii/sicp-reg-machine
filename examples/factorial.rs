@@ -39,5 +39,5 @@ fn main() {
         .unwrap();
     assert_eq!(Ok("Done"), machine.start());
     let value = machine.get_register_content("p").unwrap();
-    println!("factorial(10) = {}", u64::from_value(value).unwrap());
+    println!("factorial(16) = {}", u64::from_value(value).unwrap());
 }

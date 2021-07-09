@@ -12,7 +12,7 @@ use super::{
     stack::Stack,
     value::{CompoundValue, FromValueList, Value},
 };
-use crate::parser::RMLNode;
+use crate::parser::{RMLNode, RMLValue};
 
 pub struct Machine {
     pc: Register,
@@ -197,13 +197,24 @@ impl Machine {
                 self.get_register_content(name)
                     .and_then(|value| self.set_register_content(&reg_name, value))?;
             }
-            RMLNode::Num(n) => {
-                self.set_register_content(&reg_name, Value::Integer(*n))?;
-            }
-            RMLNode::Float(f) => {
-                self.set_register_content(&reg_name, Value::Float(*f))?;
-            }
-            RMLNode::Label(s) | RMLNode::Str(s) | RMLNode::Symbol(s) => {
+            RMLNode::Constant(value) => match value {
+                RMLValue::Float(v) => {
+                    self.set_register_content(&reg_name, Value::Float(*v))?;
+                }
+                RMLValue::Num(v) => {
+                    self.set_register_content(&reg_name, Value::Integer(*v))?;
+                }
+                RMLValue::List(v) => {
+                    self.set_register_content(
+                        &reg_name,
+                        Value::Compound(CompoundValue::new(v.clone())),
+                    )?;
+                }
+                RMLValue::Str(v) | RMLValue::Symbol(v) => {
+                    self.set_register_content(&reg_name, Value::String(v.into()))?;
+                }
+            },
+            RMLNode::Label(s) | RMLNode::Symbol(s) => {
                 self.set_register_content(&reg_name, Value::String(s.to_string()))?;
             }
             RMLNode::List(l) => {
@@ -318,10 +329,16 @@ impl Machine {
                     let value = self.get_register_content(r)?;
                     op_args.push(value);
                 }
-                RMLNode::Num(i) => op_args.push(Value::Integer(*i)),
-                RMLNode::Float(f) => op_args.push(Value::Float(*f)),
-                RMLNode::Str(s) | RMLNode::Symbol(s) => op_args.push(Value::String(s.to_string())),
-                RMLNode::List(l) => op_args.push(Value::Compound(CompoundValue::new(l.clone()))),
+                RMLNode::Constant(value) => match value {
+                    RMLValue::Num(i) => op_args.push(Value::Integer(*i)),
+                    RMLValue::Float(f) => op_args.push(Value::Float(*f)),
+                    RMLValue::Str(s) | RMLValue::Symbol(s) => {
+                        op_args.push(Value::String(s.to_string()))
+                    }
+                    RMLValue::List(l) => {
+                        op_args.push(Value::Compound(CompoundValue::new(l.clone())))
+                    }
+                },
                 _ => unreachable!(),
             }
         }

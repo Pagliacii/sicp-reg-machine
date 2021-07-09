@@ -14,22 +14,49 @@ use nom::{
     IResult,
 };
 
+/// RML Value
+#[derive(Clone, Debug, PartialEq)]
+pub enum RMLValue {
+    Float(f64),
+    Num(i32),
+    List(Vec<RMLValue>),
+    Str(String),
+    Symbol(String),
+}
+
+impl fmt::Display for RMLValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Float(v) => write!(f, "{}", v),
+            Self::Num(v) => write!(f, "{}", v),
+            Self::List(v) => write!(
+                f,
+                "({})",
+                v.iter()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+            Self::Str(v) => write!(f, "\"{}\"", v),
+            Self::Symbol(v) => write!(f, "{}", v),
+        }
+    }
+}
+
 /// RML Syntax Tree
 #[derive(Clone, Debug, PartialEq)]
 pub enum RMLNode {
     Assignment(String, Arc<RMLNode>),
     Branch(Arc<RMLNode>),
+    Constant(RMLValue),
     GotoLabel(Arc<RMLNode>),
-    Float(f64),
-    List(Vec<RMLNode>),
     Label(String),
-    Num(i32),
+    List(Vec<RMLValue>),
     Operation(String, Vec<RMLNode>),
     PerformOp(Arc<RMLNode>),
     Reg(String),
     Restore(String),
     Save(String),
-    Str(String),
     Symbol(String),
     TestOp(Arc<RMLNode>),
 }
@@ -37,21 +64,20 @@ pub enum RMLNode {
 impl fmt::Display for RMLNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RMLNode::Assignment(reg, val) => write!(f, "(assign {} {})", reg, val.to_string()),
-            RMLNode::Branch(label) => write!(f, "(branch {})", label.to_string()),
-            RMLNode::GotoLabel(label) => write!(f, "(goto {})", label.to_string()),
-            RMLNode::Float(fp) => write!(f, "(const {})", fp),
-            RMLNode::List(l) => write!(
+            Self::Assignment(reg, val) => write!(f, "(assign {} {})", reg, val),
+            Self::Branch(label) => write!(f, "(branch {})", label),
+            Self::Constant(value) => write!(f, "(const {})", value),
+            Self::GotoLabel(label) => write!(f, "(goto {})", label),
+            Self::Label(label) => write!(f, "(label {})", label),
+            Self::List(v) => write!(
                 f,
-                "(const ({}))",
-                l.iter()
+                "({})",
+                v.iter()
                     .map(|s| s.to_string())
                     .collect::<Vec<String>>()
                     .join(" ")
             ),
-            RMLNode::Label(label) => write!(f, "(label {})", label),
-            RMLNode::Num(n) => write!(f, "(const {})", n),
-            RMLNode::Operation(op_name, args) => write!(
+            Self::Operation(op_name, args) => write!(
                 f,
                 "(op {}) {}",
                 op_name,
@@ -60,32 +86,36 @@ impl fmt::Display for RMLNode {
                     .collect::<Vec<String>>()
                     .join(" ")
             ),
-            RMLNode::PerformOp(op) => write!(f, "(perform {})", op.to_string()),
-            RMLNode::Reg(reg) => write!(f, "(reg {})", reg),
-            RMLNode::Restore(reg) => write!(f, "(restore {})", reg),
-            RMLNode::Save(reg) => write!(f, "(save {})", reg),
-            RMLNode::Str(s) => write!(f, r#"(const "{}")"#, s),
-            RMLNode::Symbol(s) => write!(f, "(const {})", s),
-            RMLNode::TestOp(op) => write!(f, "(test {})", op.to_string()),
+            Self::PerformOp(op) => write!(f, "(perform {})", op),
+            Self::Reg(reg) => write!(f, "(reg {})", reg),
+            Self::Restore(reg) => write!(f, "(restore {})", reg),
+            Self::Save(reg) => write!(f, "(save {})", reg),
+            Self::TestOp(op) => write!(f, "(test {})", op),
+            Self::Symbol(v) => write!(f, "{}", v),
         }
     }
 }
 
 /// RML Parse Error
 #[derive(Debug, PartialEq, thiserror::Error)]
-pub enum RMLParseError {
+pub enum RMLParseError<I: fmt::Debug> {
     #[error("bad number")]
     BadNum,
     #[error("bad float point number")]
     BadFloatPoint,
+    #[error("bad symbol")]
+    BadSymbol,
     #[error("unknown parser error")]
-    ParseFailure,
+    ParseFailure { input: I, kind: ErrorKind },
 }
 
 /// Take from [here](https://codeandbitters.com/lets-build-a-parser/#part-11-error-handling).
-impl<I> ParseError<I> for RMLParseError {
-    fn from_error_kind(_input: I, _kind: ErrorKind) -> Self {
-        Self::ParseFailure
+impl<I> ParseError<I> for RMLParseError<I>
+where
+    I: fmt::Debug,
+{
+    fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+        Self::ParseFailure { input, kind }
     }
 
     fn append(_: I, _: ErrorKind, other: Self) -> Self {
@@ -93,10 +123,10 @@ impl<I> ParseError<I> for RMLParseError {
     }
 }
 
-type RMLResult<Rest, Expect> = IResult<Rest, Expect, RMLParseError>;
+type RMLResult<Rest, Expect> = IResult<Rest, Expect, RMLParseError<Rest>>;
 
-pub fn parse(input: &str) -> Result<Vec<RMLNode>, RMLParseError> {
-    let res = all_consuming(alt((map(rml_instruction, |n| vec![n]), rml_instructions)))(input);
+pub fn parse(input: &str) -> Result<Vec<RMLNode>, RMLParseError<&str>> {
+    let res = all_consuming(alt((rml_instructions, map(rml_instruction, |n| vec![n]))))(input);
     res.map(|(_, result)| Ok(result))
         .map_err(|nom_err| match nom_err {
             nom::Err::Error(e) | nom::Err::Failure(e) => e,
@@ -129,7 +159,6 @@ fn rml_instructions(input: &str) -> RMLResult<&str, Vec<RMLNode>> {
 /// Single RML Instruction
 fn rml_instruction(input: &str) -> RMLResult<&str, RMLNode> {
     sce(alt((
-        rml_symbol,
         rml_const,
         rml_label,
         rml_reg,
@@ -139,6 +168,13 @@ fn rml_instruction(input: &str) -> RMLResult<&str, RMLNode> {
         rml_apply_operation,
         rml_assign,
     )))(input)
+    .or_else(|_| {
+        map(sce(rml_symbol), |v| match v {
+            RMLValue::Symbol(s) => RMLNode::Symbol(s),
+            RMLValue::List(v) => RMLNode::List(v),
+            _ => unreachable!(),
+        })(input)
+    })
 }
 
 /// Valid symbol
@@ -164,14 +200,14 @@ fn valid_symbol(input: &str) -> RMLResult<&str, &str> {
 /// RML Symbol
 ///
 /// For the controller label.
-fn rml_symbol(input: &str) -> RMLResult<&str, RMLNode> {
-    map(valid_symbol, |s: &str| RMLNode::Symbol(s.into()))(input)
+fn rml_symbol(input: &str) -> RMLResult<&str, RMLValue> {
+    map(valid_symbol, |s: &str| RMLValue::Symbol(s.into()))(input)
 }
 
 /// RML String
 ///
 /// Any characters wrapped in double quotes, except the double-quote and backslash.
-fn rml_string(input: &str) -> RMLResult<&str, RMLNode> {
+fn rml_string(input: &str) -> RMLResult<&str, RMLValue> {
     let parser = delimited(
         char('"'),
         take_while(|c| {
@@ -181,10 +217,10 @@ fn rml_string(input: &str) -> RMLResult<&str, RMLNode> {
         }),
         char('"'),
     );
-    map(parser, |s: &str| RMLNode::Str(s.to_string()))(input)
+    map(parser, |s: &str| RMLValue::Str(s.into()))(input)
 }
 
-fn const_value(input: &str) -> RMLResult<&str, RMLNode> {
+fn const_value(input: &str) -> RMLResult<&str, RMLValue> {
     sce(alt((
         rml_float, rml_number, rml_symbol, rml_string, rml_list,
     )))(input)
@@ -198,41 +234,42 @@ fn const_value(input: &str) -> RMLResult<&str, RMLNode> {
 /// - `(const (a b c))` is the list `(a b c)`,
 /// - `(const ())` is the empty list.
 fn rml_const(input: &str) -> RMLResult<&str, RMLNode> {
-    delimited(
+    let parser = delimited(
         sce(char('(')),
         preceded(sce(tag("const")), const_value),
         sce(char(')')),
-    )(input)
+    );
+    map(parser, RMLNode::Constant)(input)
 }
 
 /// RML Number
 ///
 /// Valid syntax: -?\d+
-fn rml_number(input: &str) -> RMLResult<&str, RMLNode> {
+fn rml_number(input: &str) -> RMLResult<&str, RMLValue> {
     let (remain, num_string) = recognize(pair(opt(tag("-")), digit1))(input)?;
-    match num_string.parse::<i32>() {
-        Ok(n) => Ok((remain, RMLNode::Num(n))),
-        Err(_) => Err(nom::Err::Failure(RMLParseError::BadNum)),
-    }
+    num_string.parse::<i32>().map_or_else(
+        |_| Err(nom::Err::Failure(RMLParseError::BadNum)),
+        |n| Ok((remain, RMLValue::Num(n))),
+    )
 }
 
 /// RML Float Point Number
 ///
 /// Valid syntax: -?\d+\.\d+
-fn rml_float(input: &str) -> RMLResult<&str, RMLNode> {
+fn rml_float(input: &str) -> RMLResult<&str, RMLValue> {
     let (remain, float_num) = recognize(tuple((rml_number, char('.'), digit1)))(input)?;
-    match float_num.parse::<f64>() {
-        Ok(f) => Ok((remain, RMLNode::Float(f))),
-        Err(_) => Err(nom::Err::Failure(RMLParseError::BadFloatPoint)),
-    }
+    float_num.parse::<f64>().map_or_else(
+        |_| Err(nom::Err::Failure(RMLParseError::BadFloatPoint)),
+        |f| Ok((remain, RMLValue::Float(f))),
+    )
 }
 
 /// RML List
 ///
 /// Anything wrapped in double quotes.
-fn rml_list(input: &str) -> RMLResult<&str, RMLNode> {
+fn rml_list(input: &str) -> RMLResult<&str, RMLValue> {
     let parser = delimited(sce(char('(')), many0(const_value), sce(char(')')));
-    map(parser, |v| RMLNode::List(v))(input)
+    map(parser, RMLValue::List)(input)
 }
 
 /// RML Reg Instruction
@@ -387,28 +424,31 @@ mod parser_tests {
     #[test]
     fn test_rml_symbol() {
         assert_eq!(
-            Ok(("", RMLNode::Symbol("_1234".into()))),
+            Ok(("", RMLValue::Symbol("_1234".into()))),
             rml_symbol("_1234")
         );
-        assert_eq!(Ok(("", RMLNode::Symbol("abcd".into()))), rml_symbol("abcd"));
         assert_eq!(
-            Ok(("", RMLNode::Symbol("abcd?".into()))),
+            Ok(("", RMLValue::Symbol("abcd".into()))),
+            rml_symbol("abcd")
+        );
+        assert_eq!(
+            Ok(("", RMLValue::Symbol("abcd?".into()))),
             rml_symbol("abcd?")
         );
         assert_eq!(
-            Ok(("", RMLNode::Symbol("abcd!".into()))),
+            Ok(("", RMLValue::Symbol("abcd!".into()))),
             rml_symbol("abcd!")
         );
         assert_eq!(
-            Ok(("", RMLNode::Symbol("abcd-1234".into()))),
+            Ok(("", RMLValue::Symbol("abcd-1234".into()))),
             rml_symbol("abcd-1234")
         );
         assert_eq!(
-            Ok(("", RMLNode::Symbol("abcd_1234".into()))),
+            Ok(("", RMLValue::Symbol("abcd_1234".into()))),
             rml_symbol("abcd_1234")
         );
         assert_eq!(
-            Ok(("", RMLNode::Symbol("abcd_1234-".into()))),
+            Ok(("", RMLValue::Symbol("abcd_1234-".into()))),
             rml_symbol("abcd_1234-")
         );
         assert!(rml_symbol("1234").is_err());
@@ -417,40 +457,40 @@ mod parser_tests {
 
     #[test]
     fn test_rml_string() {
-        assert_eq!(Ok(("", RMLNode::Str("".into()))), rml_string(r#""""#));
+        assert_eq!(Ok(("", RMLValue::Str("".into()))), rml_string(r#""""#));
         assert_eq!(
-            Ok(("", RMLNode::Str("Hello".into()))),
+            Ok(("", RMLValue::Str("Hello".into()))),
             rml_string(r#""Hello""#)
         );
         assert_eq!(
-            Ok(("", RMLNode::Str("Hello, world!".into()))),
+            Ok(("", RMLValue::Str("Hello, world!".into()))),
             rml_string(r#""Hello, world!""#)
         );
         assert_eq!(
-            Ok(("", RMLNode::Str("1+1=2".into()))),
+            Ok(("", RMLValue::Str("1+1=2".into()))),
             rml_string(r#""1+1=2""#)
         );
         assert_eq!(
-            Ok(("", RMLNode::Str("1 + 1 = 2".into()))),
+            Ok(("", RMLValue::Str("1 + 1 = 2".into()))),
             rml_string(r#""1 + 1 = 2""#)
         );
-        assert_eq!(Ok(("", RMLNode::Str(" ".into()))), rml_string(r#"" ""#));
+        assert_eq!(Ok(("", RMLValue::Str(" ".into()))), rml_string(r#"" ""#));
     }
 
     #[test]
     fn test_rml_number() {
-        assert_eq!(Ok(("", RMLNode::Num(42))), rml_number("42"));
-        assert_eq!(Ok(("", RMLNode::Num(-42))), rml_number("-42"));
-        assert_eq!(Ok(("_", RMLNode::Num(42))), rml_number("42_"));
-        assert_eq!(Ok(("_2", RMLNode::Num(4))), rml_number("4_2"));
+        assert_eq!(Ok(("", RMLValue::Num(42))), rml_number("42"));
+        assert_eq!(Ok(("", RMLValue::Num(-42))), rml_number("-42"));
+        assert_eq!(Ok(("_", RMLValue::Num(42))), rml_number("42_"));
+        assert_eq!(Ok(("_2", RMLValue::Num(4))), rml_number("4_2"));
         assert!(rml_number("_42").is_err());
     }
 
     #[test]
     fn test_rml_float() {
-        assert_eq!(Ok(("", RMLNode::Float(42.0))), rml_float("42.0"));
-        assert_eq!(Ok(("", RMLNode::Float(-42.0))), rml_float("-42.0"));
-        assert_eq!(Ok(("_", RMLNode::Float(42.0))), rml_float("42.0_"));
+        assert_eq!(Ok(("", RMLValue::Float(42.0))), rml_float("42.0"));
+        assert_eq!(Ok(("", RMLValue::Float(-42.0))), rml_float("-42.0"));
+        assert_eq!(Ok(("_", RMLValue::Float(42.0))), rml_float("42.0_"));
         assert!(rml_float("_42.0").is_err());
     }
 
@@ -459,10 +499,10 @@ mod parser_tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::List(vec![
-                    RMLNode::Symbol("a".into()),
-                    RMLNode::Symbol("b".into()),
-                    RMLNode::Symbol("c".into())
+                RMLValue::List(vec![
+                    RMLValue::Symbol("a".into()),
+                    RMLValue::Symbol("b".into()),
+                    RMLValue::Symbol("c".into())
                 ])
             )),
             rml_list("(a b c)")
@@ -470,22 +510,22 @@ mod parser_tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::List(vec![
-                    RMLNode::Symbol("a".into()),
-                    RMLNode::Symbol("b".into()),
-                    RMLNode::Symbol("c".into())
+                RMLValue::List(vec![
+                    RMLValue::Symbol("a".into()),
+                    RMLValue::Symbol("b".into()),
+                    RMLValue::Symbol("c".into())
                 ])
             )),
             rml_list("( a  b    c     )")
         );
-        assert_eq!(Ok(("", RMLNode::List(vec![]))), rml_list("()"));
+        assert_eq!(Ok(("", RMLValue::List(vec![]))), rml_list("()"));
         assert_eq!(
             Ok((
                 "",
-                RMLNode::List(vec![
-                    RMLNode::Symbol("a".into()),
-                    RMLNode::Num(0),
-                    RMLNode::Float(1.0)
+                RMLValue::List(vec![
+                    RMLValue::Symbol("a".into()),
+                    RMLValue::Num(0),
+                    RMLValue::Float(1.0)
                 ])
             )),
             rml_list("(a 0 1.0)")
@@ -495,27 +535,36 @@ mod parser_tests {
     #[test]
     fn test_rml_const() {
         assert_eq!(
-            Ok(("", RMLNode::Str("abc".into()))),
+            Ok(("", RMLNode::Constant(RMLValue::Str("abc".into())))),
             rml_const(r#"(const "abc")"#)
         );
         assert_eq!(
-            Ok(("", RMLNode::Symbol("abc".into()))),
+            Ok(("", RMLNode::Constant(RMLValue::Symbol("abc".into())))),
             rml_const("(const abc)")
         );
-        assert_eq!(Ok(("", RMLNode::Num(42))), rml_const("(const 42)"));
-        assert_eq!(Ok(("", RMLNode::Float(42.0))), rml_const("(const 42.0)"));
+        assert_eq!(
+            Ok(("", RMLNode::Constant(RMLValue::Num(42)))),
+            rml_const("(const 42)")
+        );
+        assert_eq!(
+            Ok(("", RMLNode::Constant(RMLValue::Float(42.0)))),
+            rml_const("(const 42.0)")
+        );
         assert_eq!(
             Ok((
                 "",
-                RMLNode::List(vec![
-                    RMLNode::Symbol("a".into()),
-                    RMLNode::Symbol("b".into()),
-                    RMLNode::Symbol("c".into())
-                ])
+                RMLNode::Constant(RMLValue::List(vec![
+                    RMLValue::Symbol("a".into()),
+                    RMLValue::Symbol("b".into()),
+                    RMLValue::Symbol("c".into())
+                ]))
             )),
             rml_const("(const (a b c))")
         );
-        assert_eq!(Ok(("", RMLNode::List(vec![]))), rml_const("(const ())"));
+        assert_eq!(
+            Ok(("", RMLNode::Constant(RMLValue::List(vec![])))),
+            rml_const("(const ())")
+        );
     }
 
     #[test]
@@ -576,9 +625,12 @@ mod parser_tests {
     #[test]
     fn test_operation_arg() {
         assert_eq!(Ok(("", RMLNode::Reg("a".into()))), operation_arg("(reg a)"));
-        assert_eq!(Ok(("", RMLNode::Num(1))), operation_arg("(const 1)"));
         assert_eq!(
-            Ok(("", RMLNode::Symbol("abc".into()))),
+            Ok(("", RMLNode::Constant(RMLValue::Num(1)))),
+            operation_arg("(const 1)")
+        );
+        assert_eq!(
+            Ok(("", RMLNode::Constant(RMLValue::Symbol("abc".into())))),
             operation_arg("(const abc)")
         );
     }
@@ -590,7 +642,10 @@ mod parser_tests {
                 "",
                 RMLNode::Operation(
                     "add".into(),
-                    vec![RMLNode::Reg("a".into()), RMLNode::Num(1)]
+                    vec![
+                        RMLNode::Reg("a".into()),
+                        RMLNode::Constant(RMLValue::Num(1))
+                    ]
                 )
             )),
             operation("(op add) (reg a) (const 1)")
@@ -608,7 +663,10 @@ mod parser_tests {
                 "",
                 RMLNode::TestOp(Arc::new(RMLNode::Operation(
                     "add".into(),
-                    vec![RMLNode::Reg("a".into()), RMLNode::Num(1)]
+                    vec![
+                        RMLNode::Reg("a".into()),
+                        RMLNode::Constant(RMLValue::Num(1))
+                    ]
                 )))
             )),
             rml_apply_operation("(test (op add) (reg a) (const 1))")
@@ -618,7 +676,10 @@ mod parser_tests {
                 "",
                 RMLNode::TestOp(Arc::new(RMLNode::Operation(
                     "eq?".into(),
-                    vec![RMLNode::Reg("a".into()), RMLNode::Num(1)]
+                    vec![
+                        RMLNode::Reg("a".into()),
+                        RMLNode::Constant(RMLValue::Num(1))
+                    ]
                 )))
             )),
             rml_apply_operation("(test (op eq?) (reg a) (const 1))")
@@ -658,7 +719,7 @@ mod parser_tests {
         assert_eq!(
             Ok((
                 "",
-                RMLNode::Assignment("a".into(), Arc::new(RMLNode::Num(1)))
+                RMLNode::Assignment("a".into(), Arc::new(RMLNode::Constant(RMLValue::Num(1))))
             )),
             rml_assign("(assign a (const 1))"),
         );
@@ -670,7 +731,10 @@ mod parser_tests {
                     "a".into(),
                     Arc::new(RMLNode::Operation(
                         "add".into(),
-                        vec![RMLNode::Reg("b".into()), RMLNode::Num(1)]
+                        vec![
+                            RMLNode::Reg("b".into()),
+                            RMLNode::Constant(RMLValue::Num(1))
+                        ]
                     ))
                 )
             )),
@@ -707,10 +771,16 @@ mod parser_tests {
                     ),
                     RMLNode::TestOp(Arc::new(RMLNode::Operation(
                         "eq?".into(),
-                        vec![RMLNode::Reg("n".into()), RMLNode::Symbol("q".into())]
+                        vec![
+                            RMLNode::Reg("n".into()),
+                            RMLNode::Constant(RMLValue::Symbol("q".into()))
+                        ]
                     ))),
                     RMLNode::Branch(Arc::new(RMLNode::Label("done".into()))),
-                    RMLNode::Assignment("m".into(), Arc::new(RMLNode::Float(42.0)))
+                    RMLNode::Assignment(
+                        "m".into(),
+                        Arc::new(RMLNode::Constant(RMLValue::Float(42.0)))
+                    )
                 ]
             )),
             res
@@ -727,9 +797,9 @@ mod parser_tests {
                 RMLNode::Symbol("controller".into()),
                 RMLNode::PerformOp(Arc::new(RMLNode::Operation(
                     "print".into(),
-                    vec![RMLNode::Str(
+                    vec![RMLNode::Constant(RMLValue::Str(
                         "Please enter a number or 'q' for quit: ".into()
-                    )]
+                    ))]
                 ))),
                 RMLNode::Assignment(
                     "n".into(),
@@ -737,7 +807,10 @@ mod parser_tests {
                 ),
                 RMLNode::TestOp(Arc::new(RMLNode::Operation(
                     "eq?".into(),
-                    vec![RMLNode::Reg("n".into()), RMLNode::Symbol("q".into())]
+                    vec![
+                        RMLNode::Reg("n".into()),
+                        RMLNode::Constant(RMLValue::Symbol("q".into()))
+                    ]
                 ))),
                 RMLNode::Branch(Arc::new(RMLNode::Label("done".into()))),
                 RMLNode::TestOp(Arc::new(RMLNode::Operation(
@@ -752,7 +825,10 @@ mod parser_tests {
                 RMLNode::Symbol("fib-loop".into()),
                 RMLNode::TestOp(Arc::new(RMLNode::Operation(
                     "<".into(),
-                    vec![RMLNode::Reg("n".into()), RMLNode::Num(2)]
+                    vec![
+                        RMLNode::Reg("n".into()),
+                        RMLNode::Constant(RMLValue::Num(2))
+                    ]
                 ))),
                 RMLNode::Branch(Arc::new(RMLNode::Label("immediate-answer".into()))),
                 RMLNode::Save("continue".into()),
@@ -765,7 +841,10 @@ mod parser_tests {
                     "n".into(),
                     Arc::new(RMLNode::Operation(
                         "-".into(),
-                        vec![RMLNode::Reg("n".into()), RMLNode::Num(1)]
+                        vec![
+                            RMLNode::Reg("n".into()),
+                            RMLNode::Constant(RMLValue::Num(1))
+                        ]
                     ))
                 ),
                 RMLNode::GotoLabel(Arc::new(RMLNode::Label("fib-loop".into()))),
@@ -776,7 +855,10 @@ mod parser_tests {
                     "n".into(),
                     Arc::new(RMLNode::Operation(
                         "-".into(),
-                        vec![RMLNode::Reg("n".into()), RMLNode::Num(2)]
+                        vec![
+                            RMLNode::Reg("n".into()),
+                            RMLNode::Constant(RMLValue::Num(2))
+                        ]
                     ))
                 ),
                 RMLNode::Save("continue".into()),
