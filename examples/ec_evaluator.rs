@@ -279,11 +279,23 @@ fn get_global_environment() -> Value {
 }
 
 fn lookup_variable_value(var: String, env: Value) -> Value {
-    unimplemented!()
+    if let Value::Map(actual_env) = env {
+        match actual_env.get(&var) {
+            Some(v) => return v.clone(),
+            None => panic!("Unbound variable {}", var),
+        }
+    } else {
+        panic!("Expected a Value::Map, got {}", env);
+    }
 }
 
-fn set_variable_value(var: String, val: String, env: Value) {
-    unimplemented!()
+fn set_variable_value(var: String, val: Value, env: Value) -> Value {
+    if let Value::Map(mut actual_env) = env {
+        actual_env.insert(var, val);
+        Value::Map(actual_env)
+    } else {
+        env
+    }
 }
 
 // TODO: Apply primitive procedure
@@ -484,7 +496,7 @@ fn operations() -> Operations {
         "lookup-variable-value",
         Operation::new(lookup_variable_value),
     );
-    operations.insert("set-variable-value!", Operation::new(set_variable_value));
+    operations.insert("set-variable-value", Operation::new(set_variable_value));
     operations.insert("extend-environment", Operation::new(extend_environment));
     operations.insert("self-evaluating?", Operation::new(is_self_evaluating));
     operations.insert("variable?", Operation::new(is_variable));
@@ -767,6 +779,17 @@ mod evaluator_tests {
             assert_eq!(Some(&Value::BigNum(1)), env.get("c"));
         } else {
             panic!("The function extend_environment doesn't return a Value::Map.")
+        }
+    }
+
+    #[test]
+    fn test_set_variable_value() {
+        if let Value::Map(env) =
+            set_variable_value("a".into(), Value::new(1), get_global_environment())
+        {
+            assert_eq!(Some(&Value::Integer(1)), env.get("a"));
+        } else {
+            panic!("The function set_variable_value doesn't return a Value::Map.")
         }
     }
 }
