@@ -298,9 +298,23 @@ fn set_variable_value(var: String, val: Value, env: Value) -> Value {
     }
 }
 
-// TODO: Apply primitive procedure
 fn apply_primitive_procedure(proc: Value, argl: Value) -> Value {
-    unimplemented!()
+    if let Value::Op(op) = &proc {
+        if let Value::List(args) = &argl {
+            if let Ok(v) = &op.perform(args.clone()) {
+                v.clone()
+            } else {
+                panic!("Failed to apply procedure {} with arguments {}", proc, argl);
+            }
+        } else {
+            panic!(
+                "Failed to apply procedure {} with the argument {}",
+                proc, argl
+            );
+        }
+    } else {
+        panic!("The `proc` argument isn't a applicable procedure: {}", proc);
+    }
 }
 
 fn is_boolean_true(exp: String) -> bool {
@@ -791,5 +805,13 @@ mod evaluator_tests {
         } else {
             panic!("The function set_variable_value doesn't return a Value::Map.")
         }
+    }
+
+    #[test]
+    fn test_apply_primitive_procedure() {
+        let procedures = primitive_procedures();
+        let proc = Value::new(procedures.get("+").unwrap().clone());
+        let res = apply_primitive_procedure(proc, Value::new(vec![Value::new(1), Value::new(1)]));
+        assert_eq!(Value::Integer(2), res);
     }
 }
