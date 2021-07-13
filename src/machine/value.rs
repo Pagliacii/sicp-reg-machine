@@ -61,7 +61,7 @@ impl fmt::Display for Value {
                     .join(" ")
             ),
             Value::Pointer(v) => write!(f, "{}", v),
-            Value::String(v) => write!(f, r#""{}""#, v),
+            Value::String(v) => write!(f, "{}", v),
             Value::Op(_) => write!(f, "Operation"),
             Value::Unit => write!(f, "()"),
         }
@@ -257,11 +257,7 @@ impl TryFromValue for bool {
 
 impl TryFromValue for String {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        if let Value::String(s) = v {
-            Ok(s)
-        } else {
-            Ok(v.to_string())
-        }
+        Ok(v.to_string())
     }
 }
 

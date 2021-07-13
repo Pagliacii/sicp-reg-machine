@@ -211,9 +211,52 @@ fn is_compound_procedure(exp: String) -> bool {
     is_tagged_list(&exp, "procedure")
 }
 
-// TODO: Manipulate the environment
 fn extend_environment(vars: Value, vals: Value, base_env: Value) -> Value {
-    unimplemented!()
+    let variables: &Vec<Value>;
+    let values: &Vec<Value>;
+    let mut environment: HashMap<String, Value>;
+    if let Value::List(l) = &vars {
+        variables = l;
+    } else {
+        panic!(
+            "Failed to extend the environment because `vars` {} isn't the Value::List",
+            vars
+        );
+    }
+    if let Value::List(l) = &vals {
+        values = l;
+    } else {
+        panic!(
+            "Failed to extend the environment because `vals` {} isn't the Value::List",
+            vals
+        );
+    }
+    if let Value::Map(m) = base_env {
+        environment = m;
+    } else {
+        panic!(
+            "Failed to extend the environment because `base_env` {} isn't the Value::Map",
+            base_env
+        );
+    }
+    if variables.len() < values.len() {
+        panic!(
+            "Failed to extend the environment because too many arguments supplied: `vars` = {}, `vals` = {}.",
+            vars, vals
+        );
+    } else if variables.len() > values.len() {
+        panic!(
+            "Failed to extend the environment because too few arguments supplied: `vars` = {}, `vals` = {}.",
+            vars, vals
+        );
+    }
+    environment.extend(
+        variables
+            .iter()
+            .zip(values.iter())
+            .map(|(var, val)| (var.to_string(), val.clone())),
+    );
+    Value::Map(environment)
 }
 
 fn setup_environment() -> Value {
@@ -700,5 +743,30 @@ mod evaluator_tests {
             ]),
             definition_value("(define (test a) (b c))".into())
         );
+    }
+
+    #[test]
+    fn test_setup_environment() {
+        if let Value::Map(env) = setup_environment() {
+            assert_eq!(Some(&Value::Boolean(true)), env.get("true"));
+            assert_eq!(Some(&Value::Boolean(false)), env.get("false"));
+            assert!(env.contains_key("cons"));
+            assert!(env.contains_key("exit"));
+        } else {
+            panic!("The function setup_environment doesn't return a Value::Map.")
+        }
+    }
+
+    #[test]
+    fn test_extend_environment() {
+        let vars = Value::new(vec![Value::new("a"), Value::new("b"), Value::new("c")]);
+        let vals = Value::new(vec![Value::new(1), Value::new(1.0), Value::new(1u64)]);
+        if let Value::Map(env) = extend_environment(vars, vals, setup_environment()) {
+            assert_eq!(Some(&Value::Integer(1)), env.get("a"));
+            assert_eq!(Some(&Value::Float(1.0)), env.get("b"));
+            assert_eq!(Some(&Value::BigNum(1)), env.get("c"));
+        } else {
+            panic!("The function extend_environment doesn't return a Value::Map.")
+        }
     }
 }
