@@ -1,7 +1,6 @@
 //! The register machine
 
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::{
@@ -10,9 +9,9 @@ use super::{
     operation::Operation,
     register::Register,
     stack::Stack,
-    value::{CompoundValue, FromValueList, Value},
+    value::{FromValueList, ToValue, Value},
 };
-use crate::parser::{RMLNode, RMLValue};
+use crate::{parser::RMLNode, rmlvalue_to_value};
 
 pub struct Machine {
     pc: Register,
@@ -49,7 +48,7 @@ impl Machine {
     where
         F: Function<Args, Result = R>,
         Args: FromValueList,
-        R: Debug + PartialEq + Send + Sync + 'static,
+        R: ToValue,
         S: Into<String>,
     {
         self.the_ops.insert(name.into(), Operation::new(f));
@@ -76,7 +75,7 @@ impl Machine {
     pub fn get_register_content<S: Into<String>>(&self, reg_name: S) -> MResult<Value> {
         let reg_name = reg_name.into();
         if let Some(reg) = self.register_table.get(&reg_name) {
-            Ok(reg.get().clone())
+            Ok(reg.get())
         } else {
             Err(RegisterError::LookupFailure(reg_name))?
         }
@@ -146,7 +145,7 @@ impl Machine {
 
     pub fn execute(&mut self) -> MResult<&'static str> {
         loop {
-            if let Value::Pointer(pointer) = *self.pc.get() {
+            if let Value::Pointer(pointer) = self.pc.get() {
                 if pointer == self.the_inst_seq.len() {
                     return Ok("Done");
                 } else if pointer > self.the_inst_seq.len() {
@@ -172,7 +171,7 @@ impl Machine {
     }
 
     fn advance_pc(&mut self) -> MResult<&'static str> {
-        if let Value::Pointer(value) = *self.pc.get() {
+        if let Value::Pointer(value) = self.pc.get() {
             self.pc.set(Value::Pointer(value + 1));
             Ok("Done")
         } else {
@@ -197,30 +196,16 @@ impl Machine {
                 self.get_register_content(name)
                     .and_then(|value| self.set_register_content(&reg_name, value))?;
             }
-            RMLNode::Constant(value) => match value {
-                RMLValue::Float(v) => {
-                    self.set_register_content(&reg_name, Value::Float(*v))?;
-                }
-                RMLValue::Num(v) => {
-                    self.set_register_content(&reg_name, Value::Integer(*v))?;
-                }
-                RMLValue::List(v) => {
-                    self.set_register_content(
-                        &reg_name,
-                        Value::Compound(CompoundValue::new(v.clone())),
-                    )?;
-                }
-                RMLValue::Str(v) | RMLValue::Symbol(v) => {
-                    self.set_register_content(&reg_name, Value::String(v.into()))?;
-                }
-            },
+            RMLNode::Constant(r) => {
+                self.set_register_content(&reg_name, rmlvalue_to_value(r))?;
+            }
             RMLNode::Label(s) | RMLNode::Symbol(s) => {
                 self.set_register_content(&reg_name, Value::String(s.to_string()))?;
             }
             RMLNode::List(l) => {
                 self.set_register_content(
                     &reg_name,
-                    Value::Compound(CompoundValue::new(l.clone())),
+                    Value::List(l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>()),
                 )?;
             }
             RMLNode::Operation(op_name, args) => {
@@ -329,16 +314,7 @@ impl Machine {
                     let value = self.get_register_content(r)?;
                     op_args.push(value);
                 }
-                RMLNode::Constant(value) => match value {
-                    RMLValue::Num(i) => op_args.push(Value::Integer(*i)),
-                    RMLValue::Float(f) => op_args.push(Value::Float(*f)),
-                    RMLValue::Str(s) | RMLValue::Symbol(s) => {
-                        op_args.push(Value::String(s.to_string()))
-                    }
-                    RMLValue::List(l) => {
-                        op_args.push(Value::Compound(CompoundValue::new(l.clone())))
-                    }
-                },
+                RMLNode::Constant(value) => op_args.push(rmlvalue_to_value(value)),
                 _ => unreachable!(),
             }
         }
@@ -434,7 +410,7 @@ mod machine_tests {
         let res = m.advance_pc();
         assert_eq!(Ok("Done"), res);
         let actual = m.pc.get();
-        assert_eq!(Value::Pointer(1), *actual);
+        assert_eq!(Value::Pointer(1), actual);
     }
 
     #[test]

@@ -200,14 +200,14 @@ fn valid_symbol(input: &str) -> RMLResult<&str, &str> {
 /// RML Symbol
 ///
 /// For the controller label.
-fn rml_symbol(input: &str) -> RMLResult<&str, RMLValue> {
+pub fn rml_symbol(input: &str) -> RMLResult<&str, RMLValue> {
     map(valid_symbol, |s: &str| RMLValue::Symbol(s.into()))(input)
 }
 
 /// RML String
 ///
 /// Any characters wrapped in double quotes, except the double-quote and backslash.
-fn rml_string(input: &str) -> RMLResult<&str, RMLValue> {
+pub fn rml_string(input: &str) -> RMLResult<&str, RMLValue> {
     let parser = delimited(
         char('"'),
         take_while(|c| {
@@ -218,6 +218,36 @@ fn rml_string(input: &str) -> RMLResult<&str, RMLValue> {
         char('"'),
     );
     map(parser, |s: &str| RMLValue::Str(s.into()))(input)
+}
+
+/// RML Number
+///
+/// Valid syntax: -?\d+
+pub fn rml_number(input: &str) -> RMLResult<&str, RMLValue> {
+    let (remain, num_string) = recognize(pair(opt(tag("-")), digit1))(input)?;
+    num_string.parse::<i32>().map_or_else(
+        |_| Err(nom::Err::Failure(RMLParseError::BadNum)),
+        |n| Ok((remain, RMLValue::Num(n))),
+    )
+}
+
+/// RML Float Point Number
+///
+/// Valid syntax: -?\d+\.\d+
+pub fn rml_float(input: &str) -> RMLResult<&str, RMLValue> {
+    let (remain, float_num) = recognize(tuple((rml_number, char('.'), digit1)))(input)?;
+    float_num.parse::<f64>().map_or_else(
+        |_| Err(nom::Err::Failure(RMLParseError::BadFloatPoint)),
+        |f| Ok((remain, RMLValue::Float(f))),
+    )
+}
+
+/// RML List
+///
+/// Anything wrapped in double quotes.
+pub fn rml_list(input: &str) -> RMLResult<&str, RMLValue> {
+    let parser = delimited(sce(char('(')), many0(const_value), sce(char(')')));
+    map(parser, RMLValue::List)(input)
 }
 
 fn const_value(input: &str) -> RMLResult<&str, RMLValue> {
@@ -240,36 +270,6 @@ fn rml_const(input: &str) -> RMLResult<&str, RMLNode> {
         sce(char(')')),
     );
     map(parser, RMLNode::Constant)(input)
-}
-
-/// RML Number
-///
-/// Valid syntax: -?\d+
-fn rml_number(input: &str) -> RMLResult<&str, RMLValue> {
-    let (remain, num_string) = recognize(pair(opt(tag("-")), digit1))(input)?;
-    num_string.parse::<i32>().map_or_else(
-        |_| Err(nom::Err::Failure(RMLParseError::BadNum)),
-        |n| Ok((remain, RMLValue::Num(n))),
-    )
-}
-
-/// RML Float Point Number
-///
-/// Valid syntax: -?\d+\.\d+
-fn rml_float(input: &str) -> RMLResult<&str, RMLValue> {
-    let (remain, float_num) = recognize(tuple((rml_number, char('.'), digit1)))(input)?;
-    float_num.parse::<f64>().map_or_else(
-        |_| Err(nom::Err::Failure(RMLParseError::BadFloatPoint)),
-        |f| Ok((remain, RMLValue::Float(f))),
-    )
-}
-
-/// RML List
-///
-/// Anything wrapped in double quotes.
-fn rml_list(input: &str) -> RMLResult<&str, RMLValue> {
-    let parser = delimited(sce(char('(')), many0(const_value), sce(char(')')));
-    map(parser, RMLValue::List)(input)
 }
 
 /// RML Reg Instruction

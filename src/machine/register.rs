@@ -14,8 +14,8 @@ impl Register {
         }
     }
 
-    pub fn get(&self) -> &Value {
-        &self.contents
+    pub fn get(&self) -> Value {
+        self.contents.clone()
     }
 
     pub fn set(&mut self, value: Value) {
@@ -32,7 +32,7 @@ mod register_tests {
         let reg: Register = Register::new();
         let expected = Value::String("*unassigned*".into());
         let actual = reg.get();
-        assert_eq!(&expected, actual);
+        assert_eq!(expected, actual);
     }
 
     #[test]
@@ -41,6 +41,6 @@ mod register_tests {
         let expected = Value::Integer(12345678);
         reg.set(expected.clone());
         let actual = reg.get();
-        assert_eq!(&expected, actual);
+        assert_eq!(expected, actual);
     }
 }

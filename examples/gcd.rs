@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use reg_machine::{
     machine::{
         operation::Operation,
-        value::{FromValue, Value},
+        value::{TryFromValue, Value},
         Operations,
     },
     make_machine,
@@ -40,5 +40,5 @@ fn main() {
         .unwrap();
     assert_eq!(Ok("Done"), machine.start());
     let value = machine.get_register_content("a").unwrap();
-    println!("gcd(1023, 27) = {}", i32::from_value(value).unwrap());
+    println!("gcd(1023, 27) = {}", i32::try_from(value).unwrap());
 }

@@ -1,16 +1,12 @@
-use std::{
-    any::{type_name, Any, TypeId},
-    convert::From,
-    fmt,
-    sync::Arc,
-};
+use std::{any::Any, collections::HashMap, fmt};
 
 use impl_trait_for_tuples::*;
 
 use super::errors::{MResult, MachineError, TypeError};
+use super::operation::Operation;
 
 /// An enum of the possible value types that can be sent to an operation.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub enum Value {
     Integer(i32),
     Float(f64),
@@ -18,162 +14,298 @@ pub enum Value {
     Pointer(usize),
     String(String),
     Boolean(bool),
-    Compound(CompoundValue),
+    List(Vec<Value>),
+    Map(HashMap<String, Value>),
+    Op(Operation),
+    Unit,
 }
 
-impl From<Value> for String {
-    fn from(item: Value) -> Self {
-        match item {
-            Value::Boolean(b) => format!("Boolean ({})", b),
-            Value::Integer(i) => format!("Integer ({})", i),
-            Value::Float(f) => format!("Float ({})", f),
-            Value::BigNum(n) => format!("BigNum ({})", n),
-            Value::Pointer(p) => format!("Pointer ({})", p),
-            Value::String(s) => format!("String ({})", s),
-            Value::Compound(c) => c.to_string(),
+impl fmt::Debug for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Boolean(v) => write!(f, "<Boolean {}>", v),
+            Value::BigNum(v) => write!(f, "<BigNum {}>", v),
+            Value::Float(v) => write!(f, "<Float {}>", v),
+            Value::Integer(v) => write!(f, "<Integer {}>", v),
+            Value::List(v) => write!(f, "<List {:?}>", v.type_id()),
+            Value::Map(v) => write!(f, "<Map {:?}>", v.type_id()),
+            Value::Pointer(v) => write!(f, "<Pointer {}>", v),
+            Value::String(v) => write!(f, r#"<String "{}">"#, v),
+            Value::Op(_) => write!(f, "<Operation>"),
+            Value::Unit => write!(f, "<Unit>"),
         }
     }
 }
 
 impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", String::from(self.clone()))
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Boolean(v) => write!(f, "{}", v),
+            Value::BigNum(v) => write!(f, "{}", v),
+            Value::Float(v) => write!(f, "{}", v),
+            Value::Integer(v) => write!(f, "{}", v),
+            Value::List(l) => write!(
+                f,
+                "({})",
+                l.iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+            Value::Map(m) => write!(
+                f,
+                "({})",
+                m.iter()
+                    .map(|(k, v)| format!("({} {})", k, v.to_string()))
+                    .collect::<Vec<String>>()
+                    .join(" ")
+            ),
+            Value::Pointer(v) => write!(f, "{}", v),
+            Value::String(v) => write!(f, r#""{}""#, v),
+            Value::Op(_) => write!(f, "Operation"),
+            Value::Unit => write!(f, "()"),
+        }
     }
 }
 
 impl Value {
-    pub fn new<T>(val: T) -> Self
-    where
-        T: Any + fmt::Debug + PartialEq + Send + Sync,
-    {
-        let type_id = val.type_id();
-        if TypeId::of::<i32>() == type_id {
-            Self::Integer(*(&val as &dyn Any).downcast_ref::<i32>().unwrap())
-        } else if TypeId::of::<usize>() == type_id {
-            Self::Pointer(*(&val as &dyn Any).downcast_ref::<usize>().unwrap())
-        } else if TypeId::of::<u64>() == type_id {
-            Self::BigNum(*(&val as &dyn Any).downcast_ref::<u64>().unwrap())
-        } else if TypeId::of::<f64>() == type_id {
-            Self::Float(*(&val as &dyn Any).downcast_ref::<f64>().unwrap())
-        } else if TypeId::of::<bool>() == type_id {
-            Self::Boolean(*(&val as &dyn Any).downcast_ref::<bool>().unwrap())
-        } else if TypeId::of::<String>() == type_id {
-            Self::String(
-                (&val as &dyn Any)
-                    .downcast_ref::<String>()
-                    .unwrap()
-                    .to_owned(),
-            )
+    pub fn new<T: ToValue>(val: T) -> Self {
+        val.to_value()
+    }
+}
+
+pub trait ToValue: Sized {
+    fn to_value(&self) -> Value;
+}
+
+impl ToValue for Value {
+    fn to_value(&self) -> Value {
+        self.clone()
+    }
+}
+
+impl ToValue for i32 {
+    fn to_value(&self) -> Value {
+        Value::Integer(*self)
+    }
+}
+
+impl ToValue for f64 {
+    fn to_value(&self) -> Value {
+        Value::Float(*self)
+    }
+}
+
+impl ToValue for u64 {
+    fn to_value(&self) -> Value {
+        Value::BigNum(*self)
+    }
+}
+
+impl ToValue for usize {
+    fn to_value(&self) -> Value {
+        Value::Pointer(*self)
+    }
+}
+
+impl ToValue for bool {
+    fn to_value(&self) -> Value {
+        Value::Boolean(*self)
+    }
+}
+
+impl ToValue for String {
+    fn to_value(&self) -> Value {
+        Value::String(self.to_string())
+    }
+}
+
+impl ToValue for &dyn ToString {
+    fn to_value(&self) -> Value {
+        Value::String(self.to_string())
+    }
+}
+
+impl ToValue for &'static str {
+    fn to_value(&self) -> Value {
+        Value::String(self.to_string())
+    }
+}
+
+impl ToValue for Vec<Value> {
+    fn to_value(&self) -> Value {
+        Value::List(self.clone())
+    }
+}
+
+impl ToValue for HashMap<String, Value> {
+    fn to_value(&self) -> Value {
+        Value::Map(self.clone())
+    }
+}
+
+impl ToValue for () {
+    fn to_value(&self) -> Value {
+        Value::Unit
+    }
+}
+
+impl ToValue for Operation {
+    fn to_value(&self) -> Value {
+        Value::Op(self.clone())
+    }
+}
+
+pub trait ToNumValue: ToValue {}
+impl ToNumValue for i32 {}
+impl ToNumValue for f64 {}
+impl ToNumValue for u64 {}
+impl ToNumValue for usize {}
+
+pub trait TryFromValue: Sized {
+    fn try_from(v: Value) -> Result<Self, TypeError>;
+}
+
+impl TryFromValue for Value {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        Ok(v)
+    }
+}
+
+impl TryFromValue for i32 {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        let expected = TypeError::expected("Value::Integer");
+        match v {
+            Value::Integer(val) => Ok(val),
+            Value::Float(val) => Ok(val as i32),
+            Value::BigNum(val) => Ok(val as i32),
+            Value::Pointer(val) => Ok(val as i32),
+            Value::String(val) => val
+                .parse::<i32>()
+                .map_err(|_| expected.got(format!("String {}", val))),
+            _ => Err(expected.got(v.to_string())),
+        }
+    }
+}
+
+impl TryFromValue for f64 {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        let expected = TypeError::expected("Value::Float");
+        match v {
+            Value::Float(val) => Ok(val),
+            Value::Integer(val) => Ok(val as f64),
+            Value::BigNum(val) => Ok(val as f64),
+            Value::Pointer(val) => Ok(val as f64),
+            Value::String(val) => val
+                .parse::<f64>()
+                .map_err(|_| expected.got(format!("String {}", val))),
+            _ => Err(expected.got(v.to_string())),
+        }
+    }
+}
+
+impl TryFromValue for u64 {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        let expected = TypeError::expected("Value::BigNum");
+        match v {
+            Value::BigNum(val) => Ok(val),
+            Value::Integer(val) => Ok(val as u64),
+            Value::Float(val) => Ok(val as u64),
+            Value::Pointer(val) => Ok(val as u64),
+            Value::String(val) => val
+                .parse::<u64>()
+                .map_err(|_| expected.got(format!("String {}", val))),
+            _ => Err(expected.got(v.to_string())),
+        }
+    }
+}
+
+impl TryFromValue for usize {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        let expected = TypeError::expected("Value::Pointer");
+        match v {
+            Value::Pointer(val) => Ok(val),
+            Value::BigNum(val) => Ok(val as usize),
+            Value::Integer(val) => Ok(val as usize),
+            Value::Float(val) => Ok(val as usize),
+            Value::String(val) => val
+                .parse::<usize>()
+                .map_err(|_| expected.got(format!("String {}", val))),
+            _ => Err(expected.got(v.to_string())),
+        }
+    }
+}
+
+impl TryFromValue for bool {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        let expected = TypeError::expected("Value::Boolean");
+        match v {
+            Value::Boolean(val) => Ok(val),
+            Value::String(val) => {
+                if val == "true" {
+                    Ok(true)
+                } else if val == "false" {
+                    Ok(false)
+                } else {
+                    Err(expected.got(format!("String {}", val)))
+                }
+            }
+            _ => Err(expected.got(v.to_string())),
+        }
+    }
+}
+
+impl TryFromValue for String {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::String(s) = v {
+            Ok(s)
         } else {
-            Self::Compound(CompoundValue::new(val))
+            Ok(v.to_string())
         }
     }
 }
 
-/// Convert Value types to Rust types.
-pub trait FromValue: Clone {
-    fn from_value(val: Value) -> MResult<Self>;
-}
-
-impl FromValue for Value {
-    fn from_value(val: Value) -> MResult<Self> {
-        Ok(val)
-    }
-}
-
-impl FromValue for bool {
-    fn from_value(val: Value) -> MResult<Self> {
-        match val {
-            Value::Boolean(v) => Ok(v),
-            Value::String(s) => Ok(s == "true".to_string()),
-            _ => Err(TypeError::expected("bool").got(val))?,
+impl TryFromValue for Vec<Value> {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::List(val) = v {
+            Ok(val)
+        } else {
+            Err(TypeError::expected("Value::List").got(v.to_string()))
         }
     }
 }
 
-impl FromValue for i32 {
-    fn from_value(val: Value) -> MResult<Self> {
-        match val {
-            Value::Integer(i) => Ok(i),
-            Value::Pointer(p) => Ok(p as i32),
-            Value::Float(f) => Ok(f as i32),
-            Value::BigNum(b) => Ok(b as i32),
-            Value::String(s) => s.parse::<i32>().map_err(|_| MachineError::ConvertError {
-                value: s,
-                src: "String".to_string(),
-                dst: "i32".to_string(),
-            }),
-            _ => Err(TypeError::expected("i32").got(val))?,
+impl TryFromValue for HashMap<String, Value> {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::Map(val) = v {
+            Ok(val)
+        } else {
+            Err(TypeError::expected("Value::Map").got(v.to_string()))
         }
     }
 }
 
-impl FromValue for usize {
-    fn from_value(val: Value) -> MResult<Self> {
-        match val {
-            Value::Pointer(p) => Ok(p),
-            Value::Integer(i) => Ok(i as usize),
-            Value::Float(f) => Ok(f as usize),
-            Value::BigNum(b) => Ok(b as usize),
-            Value::String(s) => s.parse::<usize>().map_err(|_| MachineError::ConvertError {
-                value: s,
-                src: "String".to_string(),
-                dst: "usize".to_string(),
-            }),
-            _ => Err(TypeError::expected("usize").got(val))?,
+impl TryFromValue for () {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::Unit = v {
+            Ok(())
+        } else {
+            Err(TypeError::expected("Value::Unit").got(v.to_string()))
         }
     }
 }
 
-impl FromValue for u64 {
-    fn from_value(val: Value) -> MResult<Self> {
-        match val {
-            Value::BigNum(n) => Ok(n),
-            Value::Integer(i) => Ok(i as u64),
-            Value::Pointer(p) => Ok(p as u64),
-            Value::Float(f) => Ok(f as u64),
-            Value::String(s) => s.parse::<u64>().map_err(|_| MachineError::ConvertError {
-                value: s,
-                src: "String".to_string(),
-                dst: "u64".to_string(),
-            }),
-            _ => Err(TypeError::expected("u64").got(val))?,
+impl TryFromValue for Operation {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::Op(op) = v {
+            Ok(op)
+        } else {
+            Err(TypeError::expected("Value::Operation").got(v.to_string()))
         }
     }
 }
 
-impl FromValue for f64 {
-    fn from_value(val: Value) -> MResult<Self> {
-        match val {
-            Value::Float(f) => Ok(f),
-            Value::BigNum(n) => Ok(n as f64),
-            Value::Integer(i) => Ok(i as f64),
-            Value::Pointer(p) => Ok(p as f64),
-            Value::String(s) => s.parse::<f64>().map_err(|_| MachineError::ConvertError {
-                value: s,
-                src: "String".to_string(),
-                dst: "f64".to_string(),
-            }),
-            _ => Err(TypeError::expected("f64").got(val))?,
-        }
-    }
-}
-
-impl FromValue for String {
-    fn from_value(val: Value) -> MResult<Self> {
-        match val {
-            Value::Boolean(v) => Ok(v.to_string()),
-            Value::Integer(v) => Ok(v.to_string()),
-            Value::Pointer(v) => Ok(v.to_string()),
-            Value::BigNum(v) => Ok(v.to_string()),
-            Value::Float(v) => Ok(v.to_string()),
-            Value::String(v) => Ok(v.to_string()),
-            _ => Err(TypeError::expected("String").got(val))?,
-        }
-    }
-}
-
-/// Convert Vec<Value> to designated types.
+/// Convert Value array to designated types.
 pub trait FromValueList {
     fn from_value_list(values: &[Value]) -> MResult<Self>
     where
@@ -183,106 +315,17 @@ pub trait FromValueList {
 /// Convert Vec<Value> to a Tuple type.
 ///
 /// This `impl` use the `impl_for_tuples` macro to automatically support
-/// a vector with zero element up to sixteen elements.
+/// a List with zero element up to sixteen elements.
 #[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(FromValue)]
+#[tuple_types_custom_trait_bound(TryFromValue)]
 impl FromValueList for Tuple {
     fn from_value_list(values: &[Value]) -> MResult<Self> {
         let mut iter = values.iter();
         Ok((for_tuples!(
-            #( Tuple::from_value(iter.next().ok_or(
+            #( Tuple::try_from(iter.next().ok_or(
                 MachineError::ToTupleError
             )?.clone())? ),*
         )))
-    }
-}
-
-/// Container for the composite value.
-#[derive(Clone)]
-pub struct CompoundValue {
-    /// actual value
-    inner: Arc<dyn Any + Send + Sync>,
-    vtable: VTable,
-}
-
-impl fmt::Debug for CompoundValue {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CompoundValue<{}>", self.vtable.type_name)
-    }
-}
-
-impl fmt::Display for CompoundValue {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "CompoundValue({:?})", (self.vtable.debug)(&*self.inner))
-    }
-}
-
-impl PartialEq for CompoundValue {
-    fn eq(&self, other: &Self) -> bool {
-        (self.vtable.partial_eq)(&*self.inner, &*other.inner)
-    }
-}
-
-impl FromValue for CompoundValue {
-    fn from_value(val: Value) -> MResult<Self> {
-        if let Value::Compound(v) = val {
-            Ok(v)
-        } else {
-            Err(TypeError::expected("CompoundValue").got(val))?
-        }
-    }
-}
-
-impl CompoundValue {
-    pub fn new<T>(result: T) -> Self
-    where
-        T: Any + fmt::Debug + PartialEq + Send + Sync,
-    {
-        Self {
-            inner: Arc::new(result),
-            vtable: VTable::for_type::<T>(),
-        }
-    }
-
-    pub fn value(&self) -> Arc<dyn Any + Send + Sync> {
-        Arc::clone(&self.inner)
-    }
-
-    pub fn downcast_ref<T>(&self) -> MResult<&T>
-    where
-        T: Any + Send + Sync,
-    {
-        self.inner.as_ref().downcast_ref().ok_or_else(|| {
-            TypeError::expected(self.vtable.type_name)
-                .got(type_name::<T>())
-                .into()
-        })
-    }
-}
-
-/// See https://users.rust-lang.org/t/how-could-i-implement-a-more-accurate-comparison/61698/6
-#[derive(Copy, Clone)]
-struct VTable {
-    type_name: &'static str,
-    debug: fn(&dyn Any) -> &dyn fmt::Debug,
-    partial_eq: fn(&dyn Any, &dyn Any) -> bool,
-}
-
-impl VTable {
-    fn for_type<T>() -> Self
-    where
-        T: Any + fmt::Debug + PartialEq + 'static,
-    {
-        Self {
-            type_name: type_name::<T>(),
-            debug: |value: &dyn Any| -> &dyn fmt::Debug { value.downcast_ref::<T>().unwrap() },
-            partial_eq: |left: &dyn Any, right: &dyn Any| -> bool {
-                match (left.downcast_ref::<T>(), right.downcast_ref::<T>()) {
-                    (Some(l), Some(r)) => l == r,
-                    _ => false,
-                }
-            },
-        }
     }
 }
 
@@ -290,118 +333,42 @@ impl VTable {
 mod value_mod_tests {
     use super::*;
 
-    fn compare_value(v1: &Value, v2: &Value) {
-        assert_eq!(v1, v1);
-        assert_eq!(v2, v2);
-        assert_ne!(v1, v2);
-    }
-
     #[test]
-    fn test_value_compare() {
-        let a = Value::new(1);
-        let b = Value::Integer(2);
-        let c = Value::new(3usize);
-        let d = Value::Pointer(4);
-        let e = Value::new(true);
-        let f = Value::Boolean(false);
-        let g = Value::new(String::from("Hello"));
-        let h = Value::String(String::from("World"));
-        let i = Value::new(CompoundValue::new(1));
-        let j = Value::Compound(CompoundValue::new("hello"));
-        let k = Value::new(4294967296u64);
-        let l = Value::BigNum(4294967296);
-        let m = Value::new(1.0);
-        let n = Value::Float(1.5);
-        // Comparing Value::Integer tests
-        compare_value(&a, &b);
-        // Comparing Value::Pointer tests
-        compare_value(&c, &d);
-        // Comparing Value::Boolean tests
-        compare_value(&e, &f);
-        // Comparing Value::String tests
-        compare_value(&g, &h);
-        // Comparing Value::Compound tests
-        compare_value(&i, &j);
-        // Comparing Value::Float tests
-        compare_value(&m, &n);
-        // Comparing Value::Integer and Value::Float
-        assert_ne!(a, c);
-        assert_ne!(d, b);
-        // Comparing Value::BigNum
-        assert_eq!(k, l);
-    }
-
-    #[test]
-    fn test_compound_value() {
-        let v = CompoundValue::new(1);
-        let actual = v.value().downcast::<i32>();
-        assert!(actual.is_ok());
-        assert_eq!(Arc::new(1), actual.unwrap());
-    }
-
-    #[test]
-    fn test_compound_value_downcast() {
-        let v = CompoundValue::new(1);
-        let actual = v.downcast_ref::<i32>();
-        assert!(actual.is_ok());
-        assert_eq!(&1, actual.unwrap());
+    fn test_value_constructor() {
+        assert_eq!(Value::Integer(1), Value::new(1));
+        assert_eq!(Value::Float(1.0), Value::new(1.0));
+        assert_eq!(Value::BigNum(1), Value::new(1u64));
+        assert_eq!(Value::Pointer(1), Value::new(1usize));
+        assert_eq!(Value::Boolean(true), Value::new(true));
+        assert_eq!(Value::Boolean(false), Value::new(false));
+        assert_eq!(Value::String("test".into()), Value::new("test"));
         assert_eq!(
-            Err(TypeError::expected("i32").got("f32").into()),
-            v.downcast_ref::<f32>(),
+            Value::String("test".into()),
+            Value::new(String::from("test"))
         );
+        assert_eq!(Value::List(Vec::<Value>::new()), Value::new(vec![]));
+        assert_eq!(
+            Value::Map(HashMap::<String, Value>::new()),
+            Value::new(HashMap::<String, Value>::new())
+        );
+        assert_eq!(Value::Unit, Value::new(()));
     }
 
     #[test]
-    fn test_compound_value_compare() {
-        let c1 = CompoundValue::new(1);
-        let c2 = CompoundValue::new("hello");
-        let c3 = CompoundValue::new("hello".to_string());
-        let c4 = CompoundValue::new(1);
-        assert_ne!(c1, c2);
-        assert_ne!(c2, c3);
-        assert_eq!(c1, c4);
-    }
-
-    #[test]
-    fn test_from_value_trait() {
-        let i = Value::new(1);
-        let ii = i32::from_value(i);
-        assert!(ii.is_ok());
-        assert_eq!(1, ii.unwrap());
-
-        let p = Value::Pointer(1);
-        let pp = usize::from_value(p);
-        assert!(pp.is_ok());
-        assert_eq!(1usize, pp.unwrap());
-
-        let b = Value::new(false);
-        let bb = bool::from_value(b);
-        assert!(bb.is_ok());
-        assert_eq!(false, bb.unwrap());
-
-        let s = Value::new("hello".to_owned());
-        let ss = String::from_value(s);
-        assert!(ss.is_ok());
-        assert_eq!("hello".to_string(), ss.unwrap());
-
-        let n = Value::new(4294967296u64);
-        let nn = u64::from_value(n);
-        assert!(nn.is_ok());
-        assert_eq!(4294967296, nn.unwrap());
-
-        let f = Value::new(1.0);
-        let ff = f64::from_value(f);
-        assert!(ff.is_ok());
-        assert_eq!(1.0, ff.unwrap());
-    }
-
-    #[test]
-    fn test_from_value_for_compound_value() {
-        #[derive(Debug, PartialEq)]
-        struct Foo {}
-        let c = Value::new(Foo {});
-        let cc = CompoundValue::from_value(c);
-        assert!(cc.is_ok());
-        assert_eq!(CompoundValue::new(Foo {}), cc.unwrap());
+    fn test_try_from_value() {
+        assert_eq!(Ok(1), i32::try_from(Value::new(1)));
+        assert_eq!(Ok(1.0), f64::try_from(Value::new(1.0)));
+        assert_eq!(Ok(2), u64::try_from(Value::new(2u64)));
+        assert_eq!(Ok(3), usize::try_from(Value::new(3usize)));
+        assert_eq!(Ok(false), bool::try_from(Value::new(false)));
+        assert_eq!(Ok("test".to_string()), String::try_from(Value::new("test")));
+        assert_eq!(
+            Ok(Vec::<Value>::new()),
+            Vec::<Value>::try_from(Value::new(vec![]))
+        );
+        assert_eq!(
+            Ok(HashMap::<String, Value>::new()),
+            HashMap::<String, Value>::try_from(Value::new(HashMap::<String, Value>::new()))
+        );
     }
 }

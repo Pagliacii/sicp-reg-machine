@@ -7,8 +7,10 @@ use assemble::assemble;
 use machine::Operations;
 use machine::{
     errors::{MResult, MachineError},
+    value::Value,
     Machine,
 };
+use parser::RMLValue;
 
 /// Constructs and returns a model of the machine with
 /// the given registers, operations, and controller.
@@ -40,4 +42,13 @@ fn read_line_buffer() -> String {
         .read_line(&mut input)
         .expect("Failed to read line");
     input.trim().to_string()
+}
+
+pub fn rmlvalue_to_value(r: &RMLValue) -> Value {
+    match r {
+        RMLValue::Float(f) => Value::Float(*f),
+        RMLValue::Num(n) => Value::Integer(*n),
+        RMLValue::Str(s) | RMLValue::Symbol(s) => Value::String(s.to_string()),
+        RMLValue::List(l) => Value::List(l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>()),
+    }
 }

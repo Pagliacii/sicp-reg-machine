@@ -1,32 +1,37 @@
 //! Module to help with passing around functions of arbitrary parameters
 //! ref: https://github.com/osohq/oso
 
-use std::fmt::Debug;
 use std::sync::Arc;
 
 use super::errors::MResult;
 use super::function::Function;
-use super::value::{FromValueList, Value};
+use super::value::{FromValueList, ToValue, Value};
 
-type TypeErasedFunction<R> = Arc<dyn Fn(Vec<Value>) -> MResult<R> + Send + Sync>;
+type TypeErasedFunction = Arc<dyn Fn(Vec<Value>) -> MResult<Value> + Send + Sync>;
 /// Container for a `Function` to be executed
 #[derive(Clone)]
-pub struct Operation(TypeErasedFunction<Value>);
+pub struct Operation(TypeErasedFunction);
 impl Operation {
     pub fn new<Args, F>(f: F) -> Self
     where
         Args: FromValueList,
         F: Function<Args>,
-        F::Result: Debug + PartialEq + Send + Sync + 'static,
+        F::Result: ToValue,
     {
         Self(Arc::new(move |args: Vec<Value>| {
-            Args::from_value_list(&args).map(|args| Value::new(f.invoke(args)))
+            Args::from_value_list(&args).map(|args| f.invoke(args).to_value())
         }))
     }
 
     /// Execute the inner function with parameters `args`
     pub fn perform(&self, args: Vec<Value>) -> MResult<Value> {
         self.0(args)
+    }
+}
+
+impl PartialEq for Operation {
+    fn eq(&self, _: &Self) -> bool {
+        false
     }
 }
 
