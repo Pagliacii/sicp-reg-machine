@@ -205,7 +205,7 @@ impl Machine {
             RMLNode::List(l) => {
                 self.set_register_content(
                     &reg_name,
-                    Value::List(l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>()),
+                    Value::List(l.iter().map(rmlvalue_to_value).collect()),
                 )?;
             }
             RMLNode::Operation(op_name, args) => {
