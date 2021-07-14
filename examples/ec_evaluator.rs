@@ -1,9 +1,10 @@
-use std::collections::HashMap;
-use std::fmt;
-use std::fs;
-use std::io;
-use std::io::prelude::*;
-use std::ops::{Add, Div, Mul, Sub};
+use std::{
+    collections::HashMap,
+    fmt, fs,
+    io::{self, prelude::*},
+    ops::{Add, Div, Mul, Sub},
+    sync::Mutex,
+};
 
 use fancy_regex::Regex;
 use lazy_static::lazy_static;
@@ -204,128 +205,147 @@ fn is_compound_procedure(val: &Value) -> bool {
     is_tagged_list(val, "procedure")
 }
 
-fn extend_environment(vars: Value, vals: Value, base_env: Value) -> Value {
-    let variables: &Vec<Value>;
-    let values: &Vec<Value>;
-    let mut environment: HashMap<String, Value>;
-    if let Value::List(l) = &vars {
-        variables = l;
-    } else {
-        panic!(
-            "Failed to extend the environment because `vars` {} isn't the Value::List",
-            vars
-        );
-    }
-    if let Value::List(l) = &vals {
-        values = l;
-    } else {
-        panic!(
-            "Failed to extend the environment because `vals` {} isn't the Value::List",
-            vals
-        );
-    }
-    if let Value::Map(m) = base_env {
-        environment = m;
-    } else {
-        panic!(
-            "Failed to extend the environment because `base_env` {} isn't the Value::Map",
-            base_env
-        );
-    }
-    if variables.len() < values.len() {
-        panic!(
-            "Failed to extend the environment because too many arguments supplied: `vars` = {}, `vals` = {}.",
-            vars, vals
-        );
-    } else if variables.len() > values.len() {
-        panic!(
-            "Failed to extend the environment because too few arguments supplied: `vars` = {}, `vals` = {}.",
-            vars, vals
-        );
-    }
-    environment.extend(
-        variables
-            .iter()
-            .zip(values.iter())
-            .map(|(var, val)| (var.to_string(), val.clone())),
-    );
-    Value::Map(environment)
-}
-
+type Environment = HashMap<String, Value>;
 lazy_static! {
     static ref PRIMITIVE_PROCEDURES: Operations = primitive_procedures();
+    static ref GLOBAL_ENVIRONMENT: Mutex<Environment> = {
+        let mut environment: Environment = HashMap::new();
+        environment.extend(PRIMITIVE_PROCEDURES.iter().map(|(k, v)| {
+            (
+                k.to_string(),
+                Value::new(vec![Value::new("primitive"), Value::Op(v.clone())]),
+            )
+        }));
+        environment.insert("true".into(), Value::Boolean(true));
+        environment.insert("false".into(), Value::Boolean(false));
+        Mutex::new(environment)
+    };
 }
 
-fn setup_environment() -> Value {
-    let mut environment: HashMap<String, Value> = HashMap::new();
-    environment.extend(PRIMITIVE_PROCEDURES.iter().map(|(k, v)| {
-        (
-            k.to_string(),
-            Value::new(vec![Value::new("primitive"), Value::Op(v.clone())]),
-        )
-    }));
-    environment.insert("true".into(), Value::Boolean(true));
-    environment.insert("false".into(), Value::Boolean(false));
-    Value::Map(environment)
-}
-
-fn get_global_environment() -> Value {
-    setup_environment()
-}
-
-fn lookup_variable_value(var: String, env: Value) -> Value {
-    if let Value::Map(actual_env) = env {
-        match actual_env.get(&var) {
-            Some(v) => return v.clone(),
-            None => panic!("Unbound variable {}", var),
-        }
-    } else {
-        panic!("Expected a Value::Map, got {}", env);
-    }
-}
-
-fn set_variable_value(var: String, val: Value, env: Value) -> Value {
-    if let Value::Map(mut actual_env) = env {
-        match actual_env.get_mut(&var) {
-            Some(v) => {
-                *v = val;
-                Value::Map(actual_env)
-            }
-            _ => panic!("Unbound variable: SET! {}", var),
-        }
-    } else {
-        env
-    }
-}
-
-fn define_variable(var: String, val: Value, env: Value) -> Value {
-    if let Value::Map(mut actual_env) = env {
-        actual_env.insert(var, val);
-        Value::Map(actual_env)
-    } else {
-        env
-    }
-}
-
-fn apply_primitive_procedure(proc: Value, argl: Value) -> Value {
-    if let Value::List(pair) = &proc {
-        if pair.len() < 2 || Value::new("primitive") != pair[0] {
-            panic!("This `proc` {} isn't a primitive procedure", proc);
-        }
-        let op = match &pair[1] {
-            Value::Op(o) => o.clone(),
-            _ => panic!("This `proc` {} isn't a primitive procedure", proc),
-        };
-        if let Value::List(args) = &argl {
-            op.perform(args.clone()).unwrap()
-        } else {
+fn make_environment(variables: &Value, values: &Value) -> HashMap<String, Value> {
+    let mut environment: Environment = HashMap::new();
+    if let (Value::List(vars), Value::List(vals)) = (variables, values) {
+        if vars.len() < vals.len() {
             panic!(
-                "Failed to apply a primitive procedure with the argument {}",
-                argl
+                "Too many arguments supplied, vars = {} and vals = {}",
+                variables, values
+            );
+        } else if vars.len() > vals.len() {
+            panic!(
+                "Too few arguments supplied, vars = {} and vals = {}",
+                variables, values
             );
         }
+        environment.extend(
+            vars.iter()
+                .zip(vals.iter())
+                .map(|(var, val)| (var.to_string(), val.clone())),
+        );
+        environment
     } else {
-        panic!("The `proc` argument isn't a applicable procedure: {}", proc);
+        panic!("Unable to make a new environment.");
+    }
+}
+
+fn get_global_environment() -> Operation {
+    Operation::new(|message: String, args: Vec<Value>| {
+        let mut global_env = GLOBAL_ENVIRONMENT.lock().unwrap();
+        match message.as_str() {
+            "lookup" => {
+                if args.len() < 1 {
+                    panic!("[LOOKUP] Missing a variable name.");
+                }
+                let var = args[0].to_string();
+                match global_env.get(&var) {
+                    Some(v) => v.clone(),
+                    None => panic!("Unbound variable {}", var),
+                }
+            }
+            "define" => {
+                if args.len() < 2 {
+                    panic!("[DEFINE] Missing a value.");
+                }
+                global_env.insert(args[0].to_string(), args[1].clone());
+                Value::Unit
+            }
+            "extend" => {
+                if args.len() < 2 {
+                    panic!("[EXTEND] Missing values.");
+                }
+                global_env.extend(make_environment(&args[0], &args[1]));
+                Value::Unit
+            }
+            "change" => {
+                if args.len() < 2 {
+                    panic!("[CHANGE] Missing a value.");
+                }
+                let var = args[0].to_string();
+                match global_env.get_mut(&var) {
+                    Some(v) => *v = args[1].clone(),
+                    None => panic!("Unbound variable: SET! {}", var),
+                }
+                Value::Unit
+            }
+            _ => panic!("[GLOBAL-ENVIRONMENT] Unknown request: {}", message),
+        }
+    })
+}
+
+fn lookup_variable_value(var: Value, env: Operation) -> Value {
+    env.perform(vec![Value::new("lookup"), Value::new(vec![var.clone()])])
+        .expect(&format!("Failed to lookup variable {}, caused by", var))
+}
+
+fn define_variable(var: Value, val: Value, env: Operation) {
+    env.perform(vec![
+        Value::new("define"),
+        Value::new(vec![var.clone(), val.clone()]),
+    ])
+    .expect(&format!(
+        "Failed to define a variable {} with value {}, caused by",
+        var, val
+    ));
+}
+
+fn extend_environment(vars: Value, vals: Value, env: Operation) -> Operation {
+    env.perform(vec![
+        Value::new("extend"),
+        Value::new(vec![vars.clone(), vals.clone()]),
+    ])
+    .expect(&format!(
+        "Failed to extend the global environment with `vars` {} and `vals` {}, caused by",
+        vars, vals
+    ));
+    env
+}
+
+fn set_variable_value(var: Value, val: Value, env: Operation) {
+    env.perform(vec![
+        Value::new("change"),
+        Value::new(vec![var.clone(), val.clone()]),
+    ])
+    .expect(&format!(
+        "Failed to change the value of `{}` to `{}`, caused by",
+        var, val
+    ));
+}
+
+fn apply_primitive_procedure(proc: Vec<Value>, argl: Value) -> Value {
+    let pair = &proc;
+    if pair.len() < 2 || Value::new("primitive") != pair[0] {
+        panic!("Unable to apply this `proc` argument.");
+    }
+    let op = match &pair[1] {
+        Value::Op(o) => o.clone(),
+        other => panic!("The `{}` isn't a primitive procedure.", other),
+    };
+    if let Value::List(args) = &argl {
+        op.perform(args.clone()).unwrap()
+    } else {
+        panic!(
+            "Failed to apply a primitive procedure with the argument {}.",
+            argl
+        );
     }
 }
 
@@ -747,74 +767,55 @@ mod evaluator_tests {
     }
 
     #[test]
-    fn test_setup_environment() {
-        if let Value::Map(env) = setup_environment() {
-            assert_eq!(Some(&Value::Boolean(true)), env.get("true"));
-            assert_eq!(Some(&Value::Boolean(false)), env.get("false"));
-            assert!(env.contains_key("cons"));
-            assert!(env.contains_key("exit"));
-        } else {
-            panic!("The function setup_environment doesn't return a Value::Map.")
-        }
-    }
-
-    #[test]
     fn test_extend_environment() {
         let vars = Value::new(vec![Value::new("a"), Value::new("b"), Value::new("c")]);
         let vals = Value::new(vec![Value::new(1), Value::new(1.0), Value::new(1u64)]);
-        if let Value::Map(env) = extend_environment(vars, vals, setup_environment()) {
-            assert_eq!(Some(&Value::Num(1.0)), env.get("a"));
-            assert_eq!(Some(&Value::Num(1.0)), env.get("b"));
-            assert_eq!(Some(&Value::Num(1.0)), env.get("c"));
-        } else {
-            panic!("The function extend_environment doesn't return a Value::Map.")
-        }
+        let env = extend_environment(vars, vals, get_global_environment());
+        assert_eq!(
+            Value::Num(1.0),
+            lookup_variable_value(Value::new("a"), env.clone())
+        );
+        assert_eq!(
+            Value::Num(1.0),
+            lookup_variable_value(Value::new("b"), env.clone())
+        );
+        assert_eq!(Value::Num(1.0), lookup_variable_value(Value::new("c"), env));
     }
 
     #[test]
     fn test_define_variable() {
-        if let Value::Map(env) =
-            define_variable("a".into(), Value::new(1), get_global_environment())
-        {
-            assert_eq!(Some(&Value::Num(1.0)), env.get("a"));
-        } else {
-            panic!("The function define_variable doesn't return a Value::Map.")
-        }
+        let env = get_global_environment();
+        define_variable(Value::new("a"), Value::new(1), env.clone());
+        assert_eq!(Value::Num(1.0), lookup_variable_value(Value::new("a"), env));
     }
 
     #[test]
     fn test_set_variable_value() {
-        let env: HashMap<String, Value>;
-        if let Value::Map(actual_env) =
-            define_variable("a".into(), Value::new(1), get_global_environment())
-        {
-            assert_eq!(Some(&Value::Num(1.0)), actual_env.get("a"));
-            env = actual_env;
-        } else {
-            panic!("The function define_variable doesn't return a Value::Map.")
-        }
-        if let Value::Map(actual_env) =
-            set_variable_value("a".into(), Value::new(2), Value::new(env))
-        {
-            assert_eq!(Some(&Value::Num(2.0)), actual_env.get("a"));
-        } else {
-            panic!("The function set_variable_value doesn't return a Value::Map.")
-        }
+        let env = get_global_environment();
+        define_variable(Value::new("a"), Value::new(1), env.clone());
+        set_variable_value(Value::new("a"), Value::new(2), env.clone());
+        assert_eq!(Value::Num(2.0), lookup_variable_value(Value::new("a"), env));
     }
 
     #[test]
     fn test_lookup_variable_value() {
         let env = get_global_environment();
-        let env = define_variable("a".into(), Value::new(1), env);
-        let val = lookup_variable_value("a".into(), env);
+        define_variable(Value::new("a"), Value::new(1), env.clone());
+        let val = lookup_variable_value(Value::new("a"), env.clone());
         assert_eq!(Value::new(1), val);
+        set_variable_value(Value::new("a"), Value::new(2), env.clone());
+        let val = lookup_variable_value(Value::new("a"), env);
+        assert_eq!(Value::new(2), val);
     }
 
     #[test]
     fn test_apply_primitive_procedure() {
         let env = get_global_environment();
-        let proc = lookup_variable_value(Value::new("+").to_string(), env);
-        let res = apply_primitive_procedure(proc, Value::new(vec![Value::new(1), Value::new(1)]));
+        let proc = lookup_variable_value(Value::new("+"), env);
+        let res = apply_primitive_procedure(
+            Vec::<Value>::try_from(proc).unwrap(),
+            Value::new(vec![Value::new(1), Value::new(1)]),
+        );
         assert_eq!(Value::Num(2.0), res);
     }
 }

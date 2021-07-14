@@ -1,4 +1,4 @@
-use std::{any::Any, collections::HashMap, fmt};
+use std::{any::Any, fmt};
 
 use impl_trait_for_tuples::*;
 
@@ -13,7 +13,6 @@ pub enum Value {
     String(String),
     Boolean(bool),
     List(Vec<Value>),
-    Map(HashMap<String, Value>),
     Op(Operation),
     Unit,
 }
@@ -24,7 +23,6 @@ impl fmt::Debug for Value {
             Value::Boolean(v) => write!(f, "<Boolean {}>", v),
             Value::Num(v) => write!(f, "<Num {}>", v),
             Value::List(v) => write!(f, "<List {:?}>", v.type_id()),
-            Value::Map(v) => write!(f, "<Map {:?}>", v.type_id()),
             Value::Symbol(v) => write!(f, "<Symbol {}>", v),
             Value::String(v) => write!(f, r#"<String "{}">"#, v),
             Value::Op(_) => write!(f, "<Operation>"),
@@ -44,14 +42,6 @@ impl fmt::Display for Value {
                 "({})",
                 l.iter()
                     .map(|v| v.to_string())
-                    .collect::<Vec<String>>()
-                    .join(" ")
-            ),
-            Value::Map(m) => write!(
-                f,
-                "({})",
-                m.iter()
-                    .map(|(k, v)| format!("({} {})", k, v.to_string()))
                     .collect::<Vec<String>>()
                     .join(" ")
             ),
@@ -144,12 +134,6 @@ impl ToValue for &'static str {
 impl ToValue for Vec<Value> {
     fn to_value(&self) -> Value {
         Value::List(self.clone())
-    }
-}
-
-impl ToValue for HashMap<String, Value> {
-    fn to_value(&self) -> Value {
-        Value::Map(self.clone())
     }
 }
 
@@ -255,7 +239,7 @@ impl TryFromValue for bool {
 impl TryFromValue for String {
     fn try_from(v: Value) -> Result<Self, TypeError> {
         match v {
-            Value::List(_) | Value::Map(_) | Value::Op(_) => {
+            Value::List(_) | Value::Op(_) => {
                 Err(TypeError::expected("Variants compatible with String").got(v.to_string()))
             }
             _ => Ok(v.to_string()),
@@ -309,16 +293,6 @@ impl TryFromValue for Vec<usize> {
             val.iter().map(|v| usize::try_from(v.clone())).collect()
         } else {
             Err(TypeError::expected("Value::List").got(v.to_string()))
-        }
-    }
-}
-
-impl TryFromValue for HashMap<String, Value> {
-    fn try_from(v: Value) -> Result<Self, TypeError> {
-        if let Value::Map(val) = v {
-            Ok(val)
-        } else {
-            Err(TypeError::expected("Value::Map").got(v.to_string()))
         }
     }
 }
@@ -386,10 +360,6 @@ mod value_mod_tests {
             Value::new(String::from("test"))
         );
         assert_eq!(Value::List(Vec::<Value>::new()), Value::new(vec![]));
-        assert_eq!(
-            Value::Map(HashMap::<String, Value>::new()),
-            Value::new(HashMap::<String, Value>::new())
-        );
         assert_eq!(Value::Unit, Value::new(()));
     }
 
@@ -420,10 +390,6 @@ mod value_mod_tests {
                 Value::Num(2.0),
                 Value::Num(3.0)
             ]))
-        );
-        assert_eq!(
-            Ok(HashMap::<String, Value>::new()),
-            HashMap::<String, Value>::try_from(Value::new(HashMap::<String, Value>::new()))
         );
     }
 }
