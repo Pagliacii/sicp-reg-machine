@@ -38,7 +38,7 @@ mod register_tests {
     #[test]
     fn test_set_register_contents() {
         let mut reg: Register = Register::new();
-        let expected = Value::Integer(12345678);
+        let expected = Value::new(12345678);
         reg.set(expected.clone());
         let actual = reg.get();
         assert_eq!(expected, actual);

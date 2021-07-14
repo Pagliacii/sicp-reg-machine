@@ -44,6 +44,6 @@ mod operation_mod_tests {
         let op = Operation::new(|| 1 + 1);
         let res = op.perform(vec![]);
         assert!(res.is_ok());
-        assert_eq!(Value::Integer(2), res.unwrap());
+        assert_eq!(Value::new(2), res.unwrap());
     }
 }

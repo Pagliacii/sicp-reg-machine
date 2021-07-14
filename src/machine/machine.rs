@@ -9,7 +9,7 @@ use super::{
     operation::Operation,
     register::Register,
     stack::Stack,
-    value::{FromValueList, ToValue, Value},
+    value::{FromValueList, ToValue, TryFromValue, Value},
 };
 use crate::{parser::RMLNode, rmlvalue_to_value};
 
@@ -145,7 +145,7 @@ impl Machine {
 
     pub fn execute(&mut self) -> MResult<&'static str> {
         loop {
-            if let Value::Pointer(pointer) = self.pc.get() {
+            if let Ok(pointer) = usize::try_from(self.pc.get()) {
                 if pointer == self.the_inst_seq.len() {
                     return Ok("Done");
                 } else if pointer > self.the_inst_seq.len() {
@@ -171,8 +171,8 @@ impl Machine {
     }
 
     fn advance_pc(&mut self) -> MResult<&'static str> {
-        if let Value::Pointer(value) = self.pc.get() {
-            self.pc.set(Value::Pointer(value + 1));
+        if let Value::Num(value) = self.pc.get() {
+            self.pc.set(Value::Num(value + 1.0));
             Ok("Done")
         } else {
             Err(RegisterError::UnmatchedContentType {
@@ -183,7 +183,7 @@ impl Machine {
     }
 
     fn reset_pc(&mut self) {
-        self.pc.set(Value::Pointer(0));
+        self.pc.set(Value::new(0));
     }
 
     fn execute_assignment(
@@ -406,11 +406,11 @@ mod machine_tests {
     #[test]
     fn test_advance_pc() {
         let mut m = Machine::new();
-        m.pc.set(Value::Pointer(0));
+        m.pc.set(Value::new(0));
         let res = m.advance_pc();
         assert_eq!(Ok("Done"), res);
         let actual = m.pc.get();
-        assert_eq!(Value::Pointer(1), actual);
+        assert_eq!(Value::Num(1.0), actual);
     }
 
     #[test]
@@ -422,9 +422,9 @@ mod machine_tests {
 
         let actual = m.get_register_content(&name);
         assert_eq!(Ok(Value::String("*unassigned*".to_string())), actual);
-        let res = m.set_register_content(&name, Value::Integer(1));
+        let res = m.set_register_content(&name, 1.to_value());
         assert_eq!(Ok("Done"), res);
         let actual = m.get_register_content(&name);
-        assert_eq!(Ok(Value::Integer(1)), actual);
+        assert_eq!(Ok(Value::Num(1.0)), actual);
     }
 }

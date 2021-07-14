@@ -72,7 +72,7 @@ mod stack_tests {
     #[test]
     fn test_pop_item() {
         let mut stack: Stack = Stack::new();
-        let right = Value::Integer(42);
+        let right = Value::new(42);
         stack.push(right.clone());
         assert_eq!(stack.num_pushes, 1);
         assert_eq!(stack.curr_depth, 1);

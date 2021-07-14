@@ -46,9 +46,10 @@ fn read_line_buffer() -> String {
 
 pub fn rmlvalue_to_value(r: &RMLValue) -> Value {
     match r {
-        RMLValue::Float(f) => Value::Float(*f),
-        RMLValue::Num(n) => Value::Integer(*n),
-        RMLValue::Str(s) | RMLValue::Symbol(s) => Value::String(s.to_string()),
+        RMLValue::Float(f) => Value::Num(*f),
+        RMLValue::Num(n) => Value::Num(*n as f64),
+        RMLValue::Str(s) => Value::String(s.to_string()),
+        RMLValue::Symbol(s) => Value::Symbol(s.to_string()),
         RMLValue::List(l) => Value::List(l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>()),
     }
 }

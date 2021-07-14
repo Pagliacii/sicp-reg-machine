@@ -8,10 +8,8 @@ use super::operation::Operation;
 /// An enum of the possible value types that can be sent to an operation.
 #[derive(Clone, PartialEq)]
 pub enum Value {
-    Integer(i32),
-    Float(f64),
-    BigNum(u64),
-    Pointer(usize),
+    Num(f64),
+    Symbol(String),
     String(String),
     Boolean(bool),
     List(Vec<Value>),
@@ -24,12 +22,10 @@ impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Value::Boolean(v) => write!(f, "<Boolean {}>", v),
-            Value::BigNum(v) => write!(f, "<BigNum {}>", v),
-            Value::Float(v) => write!(f, "<Float {}>", v),
-            Value::Integer(v) => write!(f, "<Integer {}>", v),
+            Value::Num(v) => write!(f, "<Num {}>", v),
             Value::List(v) => write!(f, "<List {:?}>", v.type_id()),
             Value::Map(v) => write!(f, "<Map {:?}>", v.type_id()),
-            Value::Pointer(v) => write!(f, "<Pointer {}>", v),
+            Value::Symbol(v) => write!(f, "<Symbol {}>", v),
             Value::String(v) => write!(f, r#"<String "{}">"#, v),
             Value::Op(_) => write!(f, "<Operation>"),
             Value::Unit => write!(f, "<Unit>"),
@@ -41,9 +37,8 @@ impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Value::Boolean(v) => write!(f, "{}", v),
-            Value::BigNum(v) => write!(f, "{}", v),
-            Value::Float(v) => write!(f, "{}", v),
-            Value::Integer(v) => write!(f, "{}", v),
+            Value::Num(v) => write!(f, "{}", v),
+            Value::Symbol(v) => write!(f, "{}", v),
             Value::List(l) => write!(
                 f,
                 "({})",
@@ -60,8 +55,7 @@ impl fmt::Display for Value {
                     .collect::<Vec<String>>()
                     .join(" ")
             ),
-            Value::Pointer(v) => write!(f, "{}", v),
-            Value::String(v) => write!(f, "{}", v),
+            Value::String(v) => write!(f, r#""{}""#, v),
             Value::Op(_) => write!(f, "Operation"),
             Value::Unit => write!(f, "()"),
         }
@@ -86,25 +80,25 @@ impl ToValue for Value {
 
 impl ToValue for i32 {
     fn to_value(&self) -> Value {
-        Value::Integer(*self)
+        Value::Num(*self as f64)
     }
 }
 
 impl ToValue for f64 {
     fn to_value(&self) -> Value {
-        Value::Float(*self)
+        Value::Num(*self)
     }
 }
 
 impl ToValue for u64 {
     fn to_value(&self) -> Value {
-        Value::BigNum(*self)
+        Value::Num(*self as f64)
     }
 }
 
 impl ToValue for usize {
     fn to_value(&self) -> Value {
-        Value::Pointer(*self)
+        Value::Num(*self as f64)
     }
 }
 
@@ -116,19 +110,34 @@ impl ToValue for bool {
 
 impl ToValue for String {
     fn to_value(&self) -> Value {
-        Value::String(self.to_string())
+        let string = self.to_string();
+        if string.starts_with('"') {
+            Value::String(string)
+        } else {
+            Value::Symbol(string)
+        }
     }
 }
 
 impl ToValue for &dyn ToString {
     fn to_value(&self) -> Value {
-        Value::String(self.to_string())
+        let string = self.to_string();
+        if string.starts_with('"') {
+            Value::String(string)
+        } else {
+            Value::Symbol(string)
+        }
     }
 }
 
 impl ToValue for &'static str {
     fn to_value(&self) -> Value {
-        Value::String(self.to_string())
+        let string = self.to_string();
+        if string.starts_with('"') {
+            Value::String(string)
+        } else {
+            Value::Symbol(string)
+        }
     }
 }
 
@@ -174,15 +183,12 @@ impl TryFromValue for Value {
 
 impl TryFromValue for i32 {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        let expected = TypeError::expected("Value::Integer");
+        let expected = TypeError::expected("Value::Num");
         match v {
-            Value::Integer(val) => Ok(val),
-            Value::Float(val) => Ok(val as i32),
-            Value::BigNum(val) => Ok(val as i32),
-            Value::Pointer(val) => Ok(val as i32),
-            Value::String(val) => val
+            Value::Num(val) => Ok(val as i32),
+            Value::Symbol(val) => val
                 .parse::<i32>()
-                .map_err(|_| expected.got(format!("String {}", val))),
+                .map_err(|_| expected.got(format!("Symbol {}", val))),
             _ => Err(expected.got(v.to_string())),
         }
     }
@@ -190,15 +196,12 @@ impl TryFromValue for i32 {
 
 impl TryFromValue for f64 {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        let expected = TypeError::expected("Value::Float");
+        let expected = TypeError::expected("Value::Num");
         match v {
-            Value::Float(val) => Ok(val),
-            Value::Integer(val) => Ok(val as f64),
-            Value::BigNum(val) => Ok(val as f64),
-            Value::Pointer(val) => Ok(val as f64),
-            Value::String(val) => val
+            Value::Num(val) => Ok(val),
+            Value::Symbol(val) => val
                 .parse::<f64>()
-                .map_err(|_| expected.got(format!("String {}", val))),
+                .map_err(|_| expected.got(format!("Symbol {}", val))),
             _ => Err(expected.got(v.to_string())),
         }
     }
@@ -206,15 +209,12 @@ impl TryFromValue for f64 {
 
 impl TryFromValue for u64 {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        let expected = TypeError::expected("Value::BigNum");
+        let expected = TypeError::expected("Value::Num");
         match v {
-            Value::BigNum(val) => Ok(val),
-            Value::Integer(val) => Ok(val as u64),
-            Value::Float(val) => Ok(val as u64),
-            Value::Pointer(val) => Ok(val as u64),
-            Value::String(val) => val
+            Value::Num(val) => Ok(val as u64),
+            Value::Symbol(val) => val
                 .parse::<u64>()
-                .map_err(|_| expected.got(format!("String {}", val))),
+                .map_err(|_| expected.got(format!("Symbol {}", val))),
             _ => Err(expected.got(v.to_string())),
         }
     }
@@ -222,15 +222,12 @@ impl TryFromValue for u64 {
 
 impl TryFromValue for usize {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        let expected = TypeError::expected("Value::Pointer");
+        let expected = TypeError::expected("Value::Num");
         match v {
-            Value::Pointer(val) => Ok(val),
-            Value::BigNum(val) => Ok(val as usize),
-            Value::Integer(val) => Ok(val as usize),
-            Value::Float(val) => Ok(val as usize),
-            Value::String(val) => val
+            Value::Num(val) => Ok(val as usize),
+            Value::Symbol(val) => val
                 .parse::<usize>()
-                .map_err(|_| expected.got(format!("String {}", val))),
+                .map_err(|_| expected.got(format!("Symbol {}", val))),
             _ => Err(expected.got(v.to_string())),
         }
     }
@@ -241,13 +238,13 @@ impl TryFromValue for bool {
         let expected = TypeError::expected("Value::Boolean");
         match v {
             Value::Boolean(val) => Ok(val),
-            Value::String(val) => {
+            Value::Symbol(val) => {
                 if val == "true" {
                     Ok(true)
                 } else if val == "false" {
                     Ok(false)
                 } else {
-                    Err(expected.got(format!("String {}", val)))
+                    Err(expected.got(format!("Symbol {}", val)))
                 }
             }
             _ => Err(expected.got(v.to_string())),
@@ -257,7 +254,12 @@ impl TryFromValue for bool {
 
 impl TryFromValue for String {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        Ok(v.to_string())
+        match v {
+            Value::List(_) | Value::Map(_) | Value::Op(_) => {
+                Err(TypeError::expected("Variants compatible with String").got(v.to_string()))
+            }
+            _ => Ok(v.to_string()),
+        }
     }
 }
 
@@ -265,6 +267,46 @@ impl TryFromValue for Vec<Value> {
     fn try_from(v: Value) -> Result<Self, TypeError> {
         if let Value::List(val) = v {
             Ok(val)
+        } else {
+            Err(TypeError::expected("Value::List").got(v.to_string()))
+        }
+    }
+}
+
+impl TryFromValue for Vec<i32> {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::List(val) = v {
+            val.iter().map(|v| i32::try_from(v.clone())).collect()
+        } else {
+            Err(TypeError::expected("Value::List").got(v.to_string()))
+        }
+    }
+}
+
+impl TryFromValue for Vec<f64> {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::List(val) = v {
+            val.iter().map(|v| f64::try_from(v.clone())).collect()
+        } else {
+            Err(TypeError::expected("Value::List").got(v.to_string()))
+        }
+    }
+}
+
+impl TryFromValue for Vec<u64> {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::List(val) = v {
+            val.iter().map(|v| u64::try_from(v.clone())).collect()
+        } else {
+            Err(TypeError::expected("Value::List").got(v.to_string()))
+        }
+    }
+}
+
+impl TryFromValue for Vec<usize> {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        if let Value::List(val) = v {
+            val.iter().map(|v| usize::try_from(v.clone())).collect()
         } else {
             Err(TypeError::expected("Value::List").got(v.to_string()))
         }
@@ -331,15 +373,16 @@ mod value_mod_tests {
 
     #[test]
     fn test_value_constructor() {
-        assert_eq!(Value::Integer(1), Value::new(1));
-        assert_eq!(Value::Float(1.0), Value::new(1.0));
-        assert_eq!(Value::BigNum(1), Value::new(1u64));
-        assert_eq!(Value::Pointer(1), Value::new(1usize));
+        assert_eq!(Value::Num(1.0), Value::new(1));
+        assert_eq!(Value::Num(1.0), Value::new(1.0));
+        assert_eq!(Value::Num(1.0), Value::new(1u64));
+        assert_eq!(Value::Num(1.0), Value::new(1usize));
         assert_eq!(Value::Boolean(true), Value::new(true));
         assert_eq!(Value::Boolean(false), Value::new(false));
-        assert_eq!(Value::String("test".into()), Value::new("test"));
+        assert_eq!(Value::Symbol("test".into()), Value::new("test"));
+        assert_eq!(Value::String("\"test\"".into()), Value::new(r#""test""#));
         assert_eq!(
-            Value::String("test".into()),
+            Value::Symbol("test".into()),
             Value::new(String::from("test"))
         );
         assert_eq!(Value::List(Vec::<Value>::new()), Value::new(vec![]));
@@ -361,6 +404,22 @@ mod value_mod_tests {
         assert_eq!(
             Ok(Vec::<Value>::new()),
             Vec::<Value>::try_from(Value::new(vec![]))
+        );
+        assert_eq!(
+            Ok(vec![1, 2, 3]),
+            Vec::<i32>::try_from(Value::new(vec![
+                Value::Num(1.0),
+                Value::Num(2.0),
+                Value::Num(3.0)
+            ]))
+        );
+        assert_eq!(
+            Ok(vec![1.0, 2.0, 3.0]),
+            Vec::<f64>::try_from(Value::new(vec![
+                Value::Num(1.0),
+                Value::Num(2.0),
+                Value::Num(3.0)
+            ]))
         );
         assert_eq!(
             Ok(HashMap::<String, Value>::new()),
