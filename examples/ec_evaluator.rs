@@ -258,11 +258,12 @@ lazy_static! {
 
 fn setup_environment() -> Value {
     let mut environment: HashMap<String, Value> = HashMap::new();
-    environment.extend(
-        PRIMITIVE_PROCEDURES
-            .iter()
-            .map(|(k, v)| (k.to_string(), Value::Op(v.clone()))),
-    );
+    environment.extend(PRIMITIVE_PROCEDURES.iter().map(|(k, v)| {
+        (
+            k.to_string(),
+            Value::new(vec![Value::new("primitive"), Value::Op(v.clone())]),
+        )
+    }));
     environment.insert("true".into(), Value::Boolean(true));
     environment.insert("false".into(), Value::Boolean(false));
     Value::Map(environment)
@@ -307,23 +308,20 @@ fn define_variable(var: String, val: Value, env: Value) -> Value {
 }
 
 fn apply_primitive_procedure(proc: Value, argl: Value) -> Value {
-    if let Value::Symbol(op_name) = &proc {
-        let op = PRIMITIVE_PROCEDURES
-            .get(op_name.as_str())
-            .unwrap_or_else(|| panic!("This `proc` {} isn't a primitive procedure", op_name));
+    if let Value::List(pair) = &proc {
+        if pair.len() < 2 || Value::new("primitive") != pair[0] {
+            panic!("This `proc` {} isn't a primitive procedure", proc);
+        }
+        let op = match &pair[1] {
+            Value::Op(o) => o.clone(),
+            _ => panic!("This `proc` {} isn't a primitive procedure", proc),
+        };
         if let Value::List(args) = &argl {
-            if let Ok(v) = &op.perform(args.clone()) {
-                v.clone()
-            } else {
-                panic!(
-                    "Failed to apply procedure {} with arguments {}",
-                    op_name, argl
-                );
-            }
+            op.perform(args.clone()).unwrap()
         } else {
             panic!(
-                "Failed to apply procedure {} with the argument {}",
-                op_name, argl
+                "Failed to apply a primitive procedure with the argument {}",
+                argl
             );
         }
     } else {
@@ -520,7 +518,7 @@ fn operations() -> Operations {
     operations.insert("adjoin-arg", Operation::new(adjoin_arg));
     operations.insert(
         "primitive-procedure?",
-        Operation::new(|exp: String| PRIMITIVE_PROCEDURES.contains_key(exp.as_str())),
+        Operation::new(|list: Value| Value::Symbol("primitive".into()) == list_ref(&list, 0)),
     );
     operations.insert(
         "compound-procedure?",
@@ -805,8 +803,17 @@ mod evaluator_tests {
     }
 
     #[test]
+    fn test_lookup_variable_value() {
+        let env = get_global_environment();
+        let env = define_variable("a".into(), Value::new(1), env);
+        let val = lookup_variable_value("a".into(), env);
+        assert_eq!(Value::new(1), val);
+    }
+
+    #[test]
     fn test_apply_primitive_procedure() {
-        let proc = Value::new("+");
+        let env = get_global_environment();
+        let proc = lookup_variable_value(Value::new("+").to_string(), env);
         let res = apply_primitive_procedure(proc, Value::new(vec![Value::new(1), Value::new(1)]));
         assert_eq!(Value::Num(2.0), res);
     }
