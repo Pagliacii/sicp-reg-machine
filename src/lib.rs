@@ -10,7 +10,7 @@ use machine::{
     value::Value,
     Machine,
 };
-use parser::RMLValue;
+use parser::{rml_value, RMLValue};
 
 /// Constructs and returns a model of the machine with
 /// the given registers, operations, and controller.
@@ -26,7 +26,10 @@ pub fn make_machine(
     // Provides a `read` operation to read inputs from user,
     // and a `print` operation to print outputs on the screen.
     machine.install_operation("read", read_line_buffer);
-    machine.install_operation("print", |s: String| println!("{}", s));
+    machine.install_operation("print", |v: Value| match v {
+        Value::String(s) => println!("{}", s),
+        _ => println!("{}", v),
+    });
     machine.install_operations(operations);
     let (insts, labels) =
         assemble(controller_text).map_err(|msg: String| MachineError::UnableAssemble(msg))?;
@@ -35,13 +38,14 @@ pub fn make_machine(
     Ok(machine)
 }
 
-fn read_line_buffer() -> String {
+fn read_line_buffer() -> Value {
     // Read one line of input buffer-style
     let mut input = String::new();
     std::io::stdin()
         .read_line(&mut input)
         .expect("Failed to read line");
-    input.trim().to_string()
+    let (_, values) = rml_value(input.trim()).unwrap();
+    rmlvalue_to_value(&values)
 }
 
 pub fn rmlvalue_to_value(r: &RMLValue) -> Value {

@@ -7,6 +7,7 @@ use reg_machine::{
 
 const CONTROLLER_TEXT: &str = r#"
 (controller
+   (perform (op newline))
    (perform (op print) (const "Please enter a number or 'q' for quit: "))
    (assign n (op read))
    (test (op eq?) (reg n) (const q))
@@ -52,7 +53,7 @@ const CONTROLLER_TEXT: &str = r#"
 
 fn operations() -> Operations {
     let mut operations: Operations = HashMap::new();
-    operations.insert("print", Operation::new(|s: String| println!("\n{}", s)));
+    operations.insert("newline", Operation::new(|| println!()));
     operations.insert("eq?", Operation::new(|a: String, b: String| a == b));
     operations.insert(
         "noninteger?",

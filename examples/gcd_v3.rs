@@ -39,12 +39,8 @@ fn main() {
     let register_names = vec!["a", "b", "t"];
     let operations = operations();
     let mut machine = make_machine(register_names, &operations, &CONTROLLER_TEXT).unwrap();
-    machine
-        .set_register_content("a", Value::Integer(1023))
-        .unwrap();
-    machine
-        .set_register_content("b", Value::Integer(27))
-        .unwrap();
+    machine.set_register_content("a", Value::new(1023)).unwrap();
+    machine.set_register_content("b", Value::new(27)).unwrap();
     assert_eq!(Ok("Done"), machine.start());
     let value = machine.get_register_content("a").unwrap();
     println!("gcd(1023, 27) = {}", i32::try_from(value).unwrap());

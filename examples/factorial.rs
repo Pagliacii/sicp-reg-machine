@@ -34,9 +34,7 @@ fn main() {
     let register_names = vec!["n", "p", "c"];
     let operations = operations();
     let mut machine = make_machine(register_names, &operations, &CONTROLLER_TEXT).unwrap();
-    machine
-        .set_register_content("n", Value::Integer(16))
-        .unwrap();
+    machine.set_register_content("n", Value::new(16)).unwrap();
     assert_eq!(Ok("Done"), machine.start());
     let value = machine.get_register_content("p").unwrap();
     println!("factorial(16) = {}", u64::try_from(value).unwrap());

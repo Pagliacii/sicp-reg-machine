@@ -200,14 +200,14 @@ fn valid_symbol(input: &str) -> RMLResult<&str, &str> {
 /// RML Symbol
 ///
 /// For the controller label.
-pub fn rml_symbol(input: &str) -> RMLResult<&str, RMLValue> {
+fn rml_symbol(input: &str) -> RMLResult<&str, RMLValue> {
     map(valid_symbol, |s: &str| RMLValue::Symbol(s.into()))(input)
 }
 
 /// RML String
 ///
 /// Any characters wrapped in double quotes, except the double-quote and backslash.
-pub fn rml_string(input: &str) -> RMLResult<&str, RMLValue> {
+fn rml_string(input: &str) -> RMLResult<&str, RMLValue> {
     let parser = delimited(
         char('"'),
         take_while(|c| {
@@ -223,7 +223,7 @@ pub fn rml_string(input: &str) -> RMLResult<&str, RMLValue> {
 /// RML Number
 ///
 /// Valid syntax: -?\d+
-pub fn rml_number(input: &str) -> RMLResult<&str, RMLValue> {
+fn rml_number(input: &str) -> RMLResult<&str, RMLValue> {
     let (remain, num_string) = recognize(pair(opt(tag("-")), digit1))(input)?;
     num_string.parse::<i32>().map_or_else(
         |_| Err(nom::Err::Failure(RMLParseError::BadNum)),
@@ -234,7 +234,7 @@ pub fn rml_number(input: &str) -> RMLResult<&str, RMLValue> {
 /// RML Float Point Number
 ///
 /// Valid syntax: -?\d+\.\d+
-pub fn rml_float(input: &str) -> RMLResult<&str, RMLValue> {
+fn rml_float(input: &str) -> RMLResult<&str, RMLValue> {
     let (remain, float_num) = recognize(tuple((rml_number, char('.'), digit1)))(input)?;
     float_num.parse::<f64>().map_or_else(
         |_| Err(nom::Err::Failure(RMLParseError::BadFloatPoint)),
@@ -245,12 +245,12 @@ pub fn rml_float(input: &str) -> RMLResult<&str, RMLValue> {
 /// RML List
 ///
 /// Anything wrapped in double quotes.
-pub fn rml_list(input: &str) -> RMLResult<&str, RMLValue> {
-    let parser = delimited(sce(char('(')), many0(const_value), sce(char(')')));
+fn rml_list(input: &str) -> RMLResult<&str, RMLValue> {
+    let parser = delimited(sce(char('(')), many0(rml_value), sce(char(')')));
     map(parser, RMLValue::List)(input)
 }
 
-fn const_value(input: &str) -> RMLResult<&str, RMLValue> {
+pub fn rml_value(input: &str) -> RMLResult<&str, RMLValue> {
     sce(alt((
         rml_float, rml_number, rml_symbol, rml_string, rml_list,
     )))(input)
@@ -266,7 +266,7 @@ fn const_value(input: &str) -> RMLResult<&str, RMLValue> {
 fn rml_const(input: &str) -> RMLResult<&str, RMLNode> {
     let parser = delimited(
         sce(char('(')),
-        preceded(sce(tag("const")), const_value),
+        preceded(sce(tag("const")), rml_value),
         sce(char(')')),
     );
     map(parser, RMLNode::Constant)(input)
