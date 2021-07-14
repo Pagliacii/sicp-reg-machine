@@ -379,11 +379,11 @@ fn definition_value(list: Value) -> Value {
     if is_variable(&cadr) {
         list_ref(&list, 2)
     } else {
-        Value::new(vec![
-            Value::new("lambda"),
-            list_rest(&cadr, 1),
-            list_rest(&list, 2),
-        ])
+        let parameters = list_rest(&cadr, 1);
+        let mut body = Vec::<Value>::try_from(list_rest(&list, 2)).unwrap();
+        let mut result = vec![Value::new("lambda"), parameters];
+        result.append(&mut body);
+        Value::new(result)
     }
 }
 
@@ -426,7 +426,14 @@ fn primitive_procedures() -> Operations {
     procedures.insert("null?", Operation::new(|pair: Value| is_null_pair(&pair)));
     procedures.insert(
         "cons",
-        Operation::new(|head: Value, tail: Value| Value::List(vec![head, tail])),
+        Operation::new(|head: Value, tail: Value| {
+            if let Value::List(mut l) = tail {
+                l.insert(0, head);
+                l.clone()
+            } else {
+                vec![head, tail]
+            }
+        }),
     );
     procedures.insert(
         "+",
@@ -465,6 +472,8 @@ fn primitive_procedures() -> Operations {
         Operation::new(|left: Value, right: Value| calculate(">=", &left, &right)),
     );
     procedures.insert("exit", Operation::new(|| std::process::exit(0)));
+    procedures.insert("display", Operation::new(display));
+    procedures.insert("newline", Operation::new(|| println!()));
     procedures
 }
 
@@ -483,9 +492,9 @@ fn operations() -> Operations {
         "lookup-variable-value",
         Operation::new(lookup_variable_value),
     );
-    operations.insert("set-variable-value", Operation::new(set_variable_value));
+    operations.insert("set-variable-value!", Operation::new(set_variable_value));
     operations.insert("extend-environment", Operation::new(extend_environment));
-    operations.insert("define-variable", Operation::new(define_variable));
+    operations.insert("define-variable!", Operation::new(define_variable));
     operations.insert("self-evaluating?", Operation::new(is_self_evaluating));
     operations.insert("variable?", Operation::new(|v: Value| is_variable(&v)));
     operations.insert(
@@ -519,7 +528,7 @@ fn operations() -> Operations {
     operations.insert(
         "make-procedure",
         Operation::new(|unev: Value, exp: Value, env: Value| {
-            vec![Value::String("procedure".into()), unev, exp, env]
+            vec![Value::Symbol("procedure".into()), unev, exp, env]
         }),
     );
     operations.insert("operator", Operation::new(CAR));
@@ -749,7 +758,8 @@ mod evaluator_tests {
             Value::List(vec![
                 Value::Symbol("lambda".into()),
                 Value::List(vec![Value::Symbol("a".into())]),
-                Value::List(vec![Value::Symbol("b".into()), Value::Symbol("c".into())]),
+                Value::Symbol("b".into()),
+                Value::Symbol("c".into()),
             ]),
             definition_value(parse("(define (test a) b c)"))
         );
@@ -757,10 +767,7 @@ mod evaluator_tests {
             Value::List(vec![
                 Value::Symbol("lambda".into()),
                 Value::List(vec![Value::Symbol("a".into())]),
-                Value::List(vec![Value::List(vec![
-                    Value::Symbol("b".into()),
-                    Value::Symbol("c".into())
-                ])]),
+                Value::List(vec![Value::Symbol("b".into()), Value::Symbol("c".into())]),
             ]),
             definition_value(parse("(define (test a) (b c))"))
         );
