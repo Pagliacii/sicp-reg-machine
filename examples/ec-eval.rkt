@@ -7,7 +7,7 @@
    (assign continue (label print-result))
    (goto (label eval-dispatch))
  print-result
-   (perform (op print-stack-statistics))
+   ;;; (perform (op print-stack-statistics))
    (perform
     (op announce-output) (const ";;; EC-Eval value:"))
    (perform (op user-print) (reg val))
@@ -156,8 +156,8 @@
    (restore continue)
    (restore env)
    (restore unev)
-   (assign env
-           (op set-variable-value) (reg unev) (reg val) (reg env))
+   (perform
+    (op set-variable-value!) (reg unev) (reg val) (reg env))
    (assign val (const ok))
    (goto (reg continue))
  ev-definition

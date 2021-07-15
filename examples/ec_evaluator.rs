@@ -333,7 +333,10 @@ fn set_variable_value(var: Value, val: Value, env: Operation) {
 fn apply_primitive_procedure(proc: Vec<Value>, argl: Value) -> Value {
     let pair = &proc;
     if pair.len() < 2 || Value::new("primitive") != pair[0] {
-        panic!("Unable to apply this `proc` argument.");
+        panic!(
+            "Unable to apply this `proc` argument: {}.",
+            Value::new(proc)
+        );
     }
     let op = match &pair[1] {
         Value::Op(o) => o.clone(),

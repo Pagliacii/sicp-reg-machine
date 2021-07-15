@@ -333,11 +333,20 @@ pub trait FromValueList {
 impl FromValueList for Tuple {
     fn from_value_list(values: &[Value]) -> MResult<Self> {
         let mut iter = values.iter();
-        Ok((for_tuples!(
+        let result = Ok((for_tuples!(
             #( Tuple::try_from(iter.next().ok_or(
                 MachineError::ToTupleError
             )?.clone())? ),*
-        )))
+        )));
+
+        // I'm not sure that collecting the remaining items in this way is correct.
+        if result.is_ok() && iter.len() > 0 {
+            Ok((for_tuples!(
+                #( Tuple::try_from(Value::new(values.to_vec()))? ),*
+            )))
+        } else {
+            result
+        }
     }
 }
 
