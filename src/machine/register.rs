@@ -10,7 +10,7 @@ pub struct Register {
 impl Register {
     pub fn new() -> Self {
         Self {
-            contents: Value::String("*unassigned*".into()),
+            contents: Value::Symbol("*unassigned*".into()),
         }
     }
 
@@ -30,7 +30,7 @@ mod register_tests {
     #[test]
     fn test_get_register_contents() {
         let reg: Register = Register::new();
-        let expected = Value::String("*unassigned*".into());
+        let expected = Value::Symbol("*unassigned*".into());
         let actual = reg.get();
         assert_eq!(expected, actual);
     }

@@ -15,6 +15,7 @@ pub enum Value {
     List(Vec<Value>),
     Op(Operation),
     Unit,
+    EnvPtr(usize),
 }
 
 impl fmt::Debug for Value {
@@ -25,7 +26,8 @@ impl fmt::Debug for Value {
             Value::List(v) => write!(f, "<List {:?}>", v.type_id()),
             Value::Symbol(v) => write!(f, "<Symbol {}>", v),
             Value::String(v) => write!(f, r#"<String "{}">"#, v),
-            Value::Op(_) => write!(f, "<Operation>"),
+            Value::Op(v) => write!(f, "<Operation {:?}>", v.type_id()),
+            Value::EnvPtr(v) => write!(f, "<EnvPtr {}>", v),
             Value::Unit => write!(f, "<Unit>"),
         }
     }
@@ -47,6 +49,7 @@ impl fmt::Display for Value {
             ),
             Value::String(v) => write!(f, r#""{}""#, v),
             Value::Op(_) => write!(f, "Operation"),
+            Value::EnvPtr(v) => write!(f, "EnvPtr {}", v),
             Value::Unit => write!(f, "()"),
         }
     }
@@ -209,6 +212,7 @@ impl TryFromValue for usize {
         let expected = TypeError::expected("Value::Num");
         match v {
             Value::Num(val) => Ok(val as usize),
+            Value::EnvPtr(val) => Ok(val),
             Value::Symbol(val) => val
                 .parse::<usize>()
                 .map_err(|_| expected.got(format!("Symbol {}", val))),
