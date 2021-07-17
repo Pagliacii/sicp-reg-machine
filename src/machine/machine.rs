@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use log::{debug, info, trace, warn};
+
 use super::{
     errors::{MResult, MachineError, OperationError, RegisterError, TypeError},
     function::Function,
@@ -73,10 +75,13 @@ impl Machine {
     }
 
     pub fn get_register_content<S: Into<String>>(&self, reg_name: S) -> MResult<Value> {
+        trace!("get register content");
         let reg_name = reg_name.into();
         if let Some(reg) = self.register_table.get(&reg_name) {
+            debug!("reg: {}, content: {}", reg_name, reg.get());
             Ok(reg.get())
         } else {
+            warn!("unknown register: {}", reg_name);
             Err(RegisterError::LookupFailure(reg_name))?
         }
     }
@@ -86,11 +91,14 @@ impl Machine {
         reg_name: S,
         value: Value,
     ) -> MResult<&'static str> {
+        trace!("set register content");
         let reg_name = reg_name.into();
         if let Some(reg) = self.register_table.get_mut(&reg_name) {
+            debug!("set reg: {} to {}", reg_name, value);
             reg.set(value);
             Ok("Done")
         } else {
+            warn!("unknown register: {}", reg_name);
             Err(RegisterError::LookupFailure(reg_name))?
         }
     }
@@ -104,21 +112,34 @@ impl Machine {
     }
 
     pub fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> MResult<Value> {
+        trace!("call an operation");
         let name = name.into();
         let res = Ok(Value::new("Done".to_string()));
         match name.as_str() {
             "initialize-stack" => {
+                debug!("call builtin op: initialize-stack");
                 self.initialize_stack();
                 res
             }
             "print-stack-statistics" => {
+                debug!("call builtin op: print-stack-statistics");
                 self.print_stack_statistics();
                 res
             }
-            _ => self.the_ops.get(&name).map_or_else(
-                || Err(OperationError::NotFound(name).into()),
-                |op| op.perform(args),
-            ),
+            _ => {
+                debug!(
+                    "call op: {} with args: ({})",
+                    name,
+                    args.iter()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<String>>()
+                        .join(" ")
+                );
+                self.the_ops.get(&name).map_or_else(
+                    || Err(OperationError::NotFound(name).into()),
+                    |op| op.perform(args),
+                )
+            }
         }
     }
 
@@ -139,18 +160,25 @@ impl Machine {
     }
 
     pub fn start(&mut self) -> MResult<&'static str> {
+        trace!("start");
+        info!("machine starting");
         self.reset_pc();
         self.execute()
     }
 
     pub fn execute(&mut self) -> MResult<&'static str> {
+        trace!("execute instructions");
         loop {
             if let Ok(pointer) = usize::try_from(self.pc.get()) {
+                debug!("current pc: {}", pointer);
                 if pointer == self.the_inst_seq.len() {
+                    info!("finished");
                     return Ok("Done");
                 } else if pointer > self.the_inst_seq.len() {
+                    warn!("no more instructions");
                     return Err(MachineError::NoMoreInsts);
                 }
+                debug!("current inst: {}", &self.the_inst_seq[pointer]);
                 match self.the_inst_seq[pointer].clone() {
                     RMLNode::Assignment(reg_name, op) => self.execute_assignment(reg_name, op)?,
                     RMLNode::Branch(label) => self.execute_branch(label)?,
@@ -162,6 +190,7 @@ impl Machine {
                     _ => unreachable!(),
                 };
             } else {
+                warn!("unexpected type: {:?}", self.pc.get());
                 return Err(RegisterError::UnmatchedContentType {
                     reg_name: "pc".to_string(),
                     type_name: "usize".to_string(),
@@ -171,10 +200,13 @@ impl Machine {
     }
 
     fn advance_pc(&mut self) -> MResult<&'static str> {
+        trace!("increment the pc register");
         if let Value::Num(value) = self.pc.get() {
             self.pc.set(Value::Num(value + 1.0));
+            debug!("new pc: {}", self.pc.get());
             Ok("Done")
         } else {
+            warn!("unexpected type: {:?}", self.pc.get());
             Err(RegisterError::UnmatchedContentType {
                 reg_name: "pc".to_string(),
                 type_name: "usize".to_string(),
@@ -183,6 +215,8 @@ impl Machine {
     }
 
     fn reset_pc(&mut self) {
+        trace!("reset the pc register");
+        debug!("reset pc: {} to 0", self.pc.get());
         self.pc.set(Value::new(0));
     }
 
@@ -191,24 +225,33 @@ impl Machine {
         reg_name: String,
         operation: Arc<RMLNode>,
     ) -> MResult<&'static str> {
+        trace!("assignment");
         match &*operation {
             RMLNode::Reg(name) => {
+                debug!("assign {} as {}", &reg_name, name);
                 self.get_register_content(name)
                     .and_then(|value| self.set_register_content(&reg_name, value))?;
             }
             RMLNode::Constant(r) => {
+                debug!("assign {} as {}", &reg_name, r);
                 self.set_register_content(&reg_name, rmlvalue_to_value(r))?;
             }
             RMLNode::Label(s) | RMLNode::Symbol(s) => {
-                self.set_register_content(&reg_name, Value::String(s.to_string()))?;
+                debug!("assign {} as {}", &reg_name, s);
+                self.set_register_content(&reg_name, Value::Symbol(s.to_string()))?;
             }
             RMLNode::List(l) => {
+                debug!("assign {} as {:?}", &reg_name, l);
                 self.set_register_content(
                     &reg_name,
                     Value::List(l.iter().map(rmlvalue_to_value).collect()),
                 )?;
             }
             RMLNode::Operation(op_name, args) => {
+                debug!(
+                    "assign {} as the result of operating {}",
+                    &reg_name, op_name
+                );
                 self.perform_operation(op_name, args)
                     .and_then(|value| self.set_register_content(&reg_name, value))?;
             }
@@ -218,81 +261,108 @@ impl Machine {
     }
 
     fn extract_label_name(&self, label: Arc<RMLNode>) -> MResult<String> {
+        trace!("extract label name");
         match &*label {
             RMLNode::Reg(reg_name) => {
+                debug!("extract from a register: {}", reg_name);
                 let value = self.get_register_content(reg_name)?;
-                if let Value::String(label) = value {
-                    Ok(label.to_string())
+                if let Value::Symbol(label) = value {
+                    debug!("label: {}", &label);
+                    Ok(label)
                 } else {
+                    warn!("unexpected type: {}", value);
                     Err(RegisterError::UnmatchedContentType {
                         reg_name: reg_name.to_string(),
-                        type_name: "String".into(),
+                        type_name: "Value::Symbol".into(),
                     })?
                 }
             }
-            RMLNode::Label(label_name) => Ok(label_name.to_string()),
+            RMLNode::Label(label_name) => {
+                debug!("label: {}", label_name);
+                Ok(label_name.to_string())
+            }
             _ => unreachable!(),
         }
     }
 
     fn execute_branch(&mut self, label: Arc<RMLNode>) -> MResult<&'static str> {
+        trace!("branch");
         let label_name = self.extract_label_name(label)?;
         if let Some(insts) = self.the_labels.get(&label_name) {
             if let Value::Boolean(true) = self.flag.get() {
+                debug!("jump to {}", &label_name);
                 self.the_inst_seq = insts.clone();
                 self.reset_pc();
                 Ok("Done")
             } else {
+                debug!("go on");
                 self.advance_pc()
             }
         } else {
+            warn!("unknown label: {}", &label_name);
             Err(MachineError::UnknownLabel(label_name))
         }
     }
 
     fn execute_goto(&mut self, label: Arc<RMLNode>) -> MResult<&'static str> {
+        trace!("goto");
         let label_name = self.extract_label_name(label)?;
         if let Some(insts) = self.the_labels.get(&label_name) {
+            debug!("go to label: {}", &label_name);
             self.the_inst_seq = insts.clone();
             self.reset_pc();
             Ok("Done")
         } else {
+            warn!("unknown label: {}", &label_name);
             Err(MachineError::UnknownLabel(label_name))
         }
     }
 
     fn execute_perform(&mut self, operation: Arc<RMLNode>) -> MResult<&'static str> {
+        trace!("perform");
         match &*operation {
-            RMLNode::Operation(op_name, args) => self
-                .perform_operation(op_name, args)
-                .and_then(|_| self.advance_pc()),
+            RMLNode::Operation(op_name, args) => {
+                debug!("to be performed: {}", op_name);
+                self.perform_operation(op_name, args).and_then(|v| {
+                    debug!("performed result: {}", v);
+                    self.advance_pc()
+                })
+            }
             _ => unreachable!(),
         }
     }
 
     fn execute_restore(&mut self, reg_name: String) -> MResult<&'static str> {
+        trace!("restore");
         let value = self
             .stack
             .pop()
             .map_err(|s: &str| MachineError::StackError(s.to_string()))?;
+        debug!("restore {} to {}", reg_name, value);
         self.set_register_content(&reg_name, value)?;
         self.advance_pc()
     }
 
     fn execute_save(&mut self, reg_name: String) -> MResult<&'static str> {
+        trace!("save");
         let value = self.get_register_content(&reg_name)?;
+        debug!("reg: {}, value: {}, saved", reg_name, value);
         self.stack.push(value);
         self.advance_pc()
     }
 
     fn execute_test(&mut self, operation: Arc<RMLNode>) -> MResult<&'static str> {
+        trace!("test");
         match &*operation {
             RMLNode::Operation(op_name, args) => {
+                debug!("test a op: {}", op_name);
                 self.perform_operation(op_name, args).and_then(|value| {
+                    debug!("test result: {}", value);
                     if let Value::Boolean(_) = value {
                         self.flag.set(value);
                         self.advance_pc()
                     } else {
+                        warn!("unexpected type: {}", value);
                         Err(TypeError::expected("bool"))?
                     }
                 })
@@ -306,6 +376,7 @@ impl Machine {
         op_name: S,
         args: &Vec<RMLNode>,
     ) -> MResult<Value> {
+        trace!("perform an operation");
         let op_name = op_name.into();
         let mut op_args: Vec<Value> = vec![];
         for arg in args.iter() {
@@ -318,6 +389,15 @@ impl Machine {
                 _ => unreachable!(),
             }
         }
+        debug!(
+            "op: {} performs with args: ({})",
+            op_name,
+            op_args
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(" ")
+        );
         self.call_operation(op_name, op_args)
     }
 }
@@ -421,7 +501,7 @@ mod machine_tests {
         assert_eq!(Ok("register-allocated"), res);
 
         let actual = m.get_register_content(&name);
-        assert_eq!(Ok(Value::String("*unassigned*".to_string())), actual);
+        assert_eq!(Ok(Value::Symbol("*unassigned*".to_string())), actual);
         let res = m.set_register_content(&name, 1.to_value());
         assert_eq!(Ok("Done"), res);
         let actual = m.get_register_content(&name);

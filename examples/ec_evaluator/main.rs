@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
-    fmt, fs,
+    fmt,
+    fs::read_to_string,
     io::{self, prelude::*},
     ops::{Add, Div, Mul, Sub},
     sync::Mutex,
@@ -19,6 +20,9 @@ use reg_machine::{
     parser::rml_value,
     rmlvalue_to_value,
 };
+
+mod environment;
+use environment::Environment;
 
 /// Read from Stdin and replace `'` to `quote`.
 /// Supports multiple lines.
@@ -205,129 +209,44 @@ fn is_compound_procedure(val: &Value) -> bool {
     is_tagged_list(val, "procedure")
 }
 
-type Environment = HashMap<String, Value>;
 lazy_static! {
     static ref PRIMITIVE_PROCEDURES: Operations = primitive_procedures();
-    static ref GLOBAL_ENVIRONMENT: Mutex<Environment> = {
-        let mut environment: Environment = HashMap::new();
-        environment.extend(PRIMITIVE_PROCEDURES.iter().map(|(k, v)| {
-            (
+    static ref ENVIRONMENTS: Mutex<Vec<Environment>> = {
+        let global_env: Environment = Environment::new();
+        for (k, v) in PRIMITIVE_PROCEDURES.iter() {
+            global_env.insert_value(
                 k.to_string(),
                 Value::new(vec![Value::new("primitive"), Value::Op(v.clone())]),
-            )
-        }));
-        environment.insert("true".into(), Value::Boolean(true));
-        environment.insert("false".into(), Value::Boolean(false));
-        Mutex::new(environment)
+            );
+        }
+        global_env.insert_value("true".into(), Value::Boolean(true));
+        global_env.insert_value("false".into(), Value::Boolean(false));
+        Mutex::new(vec![global_env])
     };
 }
 
-fn make_environment(variables: &Value, values: &Value) -> HashMap<String, Value> {
-    let mut environment: Environment = HashMap::new();
-    if let (Value::List(vars), Value::List(vals)) = (variables, values) {
-        if vars.len() < vals.len() {
-            panic!(
-                "Too many arguments supplied, vars = {} and vals = {}",
-                variables, values
-            );
-        } else if vars.len() > vals.len() {
-            panic!(
-                "Too few arguments supplied, vars = {} and vals = {}",
-                variables, values
-            );
-        }
-        environment.extend(
-            vars.iter()
-                .zip(vals.iter())
-                .map(|(var, val)| (var.to_string(), val.clone())),
-        );
-        environment
-    } else {
-        panic!("Unable to make a new environment.");
+fn manipulate_env(op: &'static str, env_ptr: usize, args: &Vec<Value>) -> Value {
+    let mut envs = ENVIRONMENTS.lock().unwrap();
+    if env_ptr >= envs.len() {
+        panic!("Unknown environment: {}", env_ptr);
     }
-}
-
-fn get_global_environment() -> Operation {
-    Operation::new(|message: String, args: Vec<Value>| {
-        let mut global_env = GLOBAL_ENVIRONMENT.lock().unwrap();
-        match message.as_str() {
-            "lookup" => {
-                if args.len() < 1 {
-                    panic!("[LOOKUP] Missing a variable name.");
-                }
-                let var = args[0].to_string();
-                match global_env.get(&var) {
-                    Some(v) => v.clone(),
-                    None => panic!("Unbound variable {}", var),
-                }
-            }
-            "define" => {
-                if args.len() < 2 {
-                    panic!("[DEFINE] Missing a value.");
-                }
-                global_env.insert(args[0].to_string(), args[1].clone());
-                Value::Unit
-            }
-            "extend" => {
-                if args.len() < 2 {
-                    panic!("[EXTEND] Missing values.");
-                }
-                global_env.extend(make_environment(&args[0], &args[1]));
-                Value::Unit
-            }
-            "change" => {
-                if args.len() < 2 {
-                    panic!("[CHANGE] Missing a value.");
-                }
-                let var = args[0].to_string();
-                match global_env.get_mut(&var) {
-                    Some(v) => *v = args[1].clone(),
-                    None => panic!("Unbound variable: SET! {}", var),
-                }
-                Value::Unit
-            }
-            _ => panic!("[GLOBAL-ENVIRONMENT] Unknown request: {}", message),
+    match op {
+        "lookup" => envs[env_ptr].lookup(args),
+        "define" => {
+            envs[env_ptr].insert(args);
+            Value::EnvPtr(env_ptr)
         }
-    })
-}
-
-fn lookup_variable_value(var: Value, env: Operation) -> Value {
-    env.perform(vec![Value::new("lookup"), Value::new(vec![var.clone()])])
-        .expect(&format!("Failed to lookup variable {}, caused by", var))
-}
-
-fn define_variable(var: Value, val: Value, env: Operation) {
-    env.perform(vec![
-        Value::new("define"),
-        Value::new(vec![var.clone(), val.clone()]),
-    ])
-    .expect(&format!(
-        "Failed to define a variable {} with value {}, caused by",
-        var, val
-    ));
-}
-
-fn extend_environment(vars: Value, vals: Value, env: Operation) -> Operation {
-    env.perform(vec![
-        Value::new("extend"),
-        Value::new(vec![vars.clone(), vals.clone()]),
-    ])
-    .expect(&format!(
-        "Failed to extend the global environment with `vars` {} and `vals` {}, caused by",
-        vars, vals
-    ));
-    env
-}
-
-fn set_variable_value(var: Value, val: Value, env: Operation) {
-    env.perform(vec![
-        Value::new("change"),
-        Value::new(vec![var.clone(), val.clone()]),
-    ])
-    .expect(&format!(
-        "Failed to change the value of `{}` to `{}`, caused by",
-        var, val
-    ));
+        "update" => {
+            envs[env_ptr].update(args);
+            Value::EnvPtr(env_ptr)
+        }
+        "extend" => {
+            let env = envs[env_ptr].extend(args);
+            envs.push(env);
+            Value::EnvPtr(env_ptr + 1)
+        }
+        other => panic!("[Environment] Unknown request: {}", other),
+    }
 }
 
 fn apply_primitive_procedure(proc: Vec<Value>, argl: Value) -> Value {
@@ -489,15 +408,30 @@ fn operations() -> Operations {
     operations.insert("user-print", Operation::new(user_print));
     operations.insert(
         "get-global-environment",
-        Operation::new(get_global_environment),
+        Operation::new(|| Value::EnvPtr(0)),
     );
     operations.insert(
         "lookup-variable-value",
-        Operation::new(lookup_variable_value),
+        Operation::new(|var: Value, env_ptr: usize| manipulate_env("lookup", env_ptr, &vec![var])),
     );
-    operations.insert("set-variable-value!", Operation::new(set_variable_value));
-    operations.insert("extend-environment", Operation::new(extend_environment));
-    operations.insert("define-variable!", Operation::new(define_variable));
+    operations.insert(
+        "set-variable-value!",
+        Operation::new(|var: Value, val: Value, env_ptr: usize| {
+            manipulate_env("update", env_ptr, &vec![var, val])
+        }),
+    );
+    operations.insert(
+        "extend-environment",
+        Operation::new(|vars: Value, vals: Value, env_ptr: usize| {
+            manipulate_env("extend", env_ptr, &vec![vars, vals])
+        }),
+    );
+    operations.insert(
+        "define-variable!",
+        Operation::new(|var: Value, val: Value, env_ptr: usize| {
+            manipulate_env("define", env_ptr, &vec![var, val]);
+        }),
+    );
     operations.insert("self-evaluating?", Operation::new(is_self_evaluating));
     operations.insert("variable?", Operation::new(|v: Value| is_variable(&v)));
     operations.insert(
@@ -578,9 +512,14 @@ fn operations() -> Operations {
     operations
 }
 
+fn init_logging(_log_path: &str) {
+    env_logger::init();
+}
+
 fn main() {
+    init_logging("examples/ec_evaluator/logs");
     let controller_text: String =
-        fs::read_to_string("examples/ec-eval.rkt").expect("Couldn't read from file");
+        read_to_string("examples/ec_evaluator/controller.scm").expect("Couldn't read from file");
     let register_names = vec![
         // `exp` is used to hold the expression to be evaluated
         "exp",
