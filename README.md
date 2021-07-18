@@ -2,10 +2,6 @@
 
 The machine details could be found in the SICP chapter 5. See [here](https://sarabander.github.io/sicp/html/5_002e1.xhtml#g_t5_002e1).
 
-## Exercise 5.51
-
-> Develop a rudimentary implementation of Scheme in C (or some other low-level language of your choice) by translating the explicit-control evaluator of [Section 5.4](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4) into C. In order to run this code you will need to also provide appropriate storage-allocation routines and other run-time support.
-
 ## Instruction Summary
 
 ```scheme
@@ -58,7 +54,7 @@ Valid kinds of constant value:
 | Iterative Exponentiation | See [Exercise 5.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e4)                                                                                            | [iterative_exp.rs](examples/iterative_exp.rs)             |
 | Recursive Exponentiation | See [Exercise 5.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e4)                                                                                            | [recursive_exp.rs](examples/recursive_exp.rs)             |
 
-## Running
+### Running
 
 ```shell
 $ git clone https://github.com/Pagliacii/sicp-reg-machine
@@ -69,13 +65,17 @@ $ ls examples
 $ cargo run --example <machine-name>
 ```
 
-## The Explicit-Control Evaluator
+## Exercise 5.51
+
+> Develop a rudimentary implementation of Scheme in C (or some other low-level language of your choice) by translating the explicit-control evaluator of [Section 5.4](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4) into C. In order to run this code you will need to also provide appropriate storage-allocation routines and other run-time support.
+
+### The Explicit-Control Evaluator
 
 See [5.4 The Explicit-Control Evaluator](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4) for more details.
 
 Play with it:
 
-```shell
+```scheme
 $ cargo run --example ec_evaluator
     Finished dev [unoptimized + debuginfo] target(s) in 0.06s
      Running `target/debug/examples/ec_evaluator`
@@ -117,7 +117,7 @@ ok
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
