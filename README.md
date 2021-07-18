@@ -69,6 +69,52 @@ $ ls examples
 $ cargo run --example <machine-name>
 ```
 
+## The Explicit-Control Evaluator
+
+See [5.4 The Explicit-Control Evaluator](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4) for more details.
+
+Play with it:
+
+```shell
+$ cargo run --example ec_evaluator
+    Finished dev [unoptimized + debuginfo] target(s) in 0.06s
+     Running `target/debug/examples/ec_evaluator`
+
+
+;;; EC-Eval input:
+(define (factorial n)
+  (if (= n 1) 1 (* (factorial (- n 1)) n)))
+
+;;; EC-Eval value:
+ok
+
+
+;;; EC-Eval input:
+(factorial 5)
+
+;;; EC-Eval value:
+120
+
+
+;;; EC-Eval input:
+(define (factorial n)
+  (define (iter product counter)
+    (if (> counter n)
+        product
+        (iter (* product counter) (+ counter 1))))
+  (iter 1 1))
+
+;;; EC-Eval value:
+ok
+
+
+;;; EC-Eval input:
+(factorial 5)
+
+;;; EC-Eval value:
+120
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md) file for details.
