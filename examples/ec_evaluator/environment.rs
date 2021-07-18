@@ -76,12 +76,19 @@ impl Environment {
                     variables, values
                 );
             }
-            for (var, val) in vars.iter().zip(vals.iter()) {
-                env.insert_value(var.to_string(), val.clone());
-            }
+            env.extend_inner_map(vars, vals);
             env
         } else {
             panic!("[EXTEND] Unknown arguments: {} and {}", variables, values);
         }
+    }
+
+    fn extend_inner_map(&self, vars: &Vec<Value>, vals: &Vec<Value>) {
+        let mut env = self.0.lock().unwrap();
+        env.extend(
+            vars.iter()
+                .zip(vals.iter())
+                .map(|(var, val)| (var.to_string(), val.clone())),
+        );
     }
 }

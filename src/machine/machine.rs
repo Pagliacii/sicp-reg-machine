@@ -94,7 +94,7 @@ impl Machine {
         trace!("set register content");
         let reg_name = reg_name.into();
         if let Some(reg) = self.register_table.get_mut(&reg_name) {
-            debug!("set reg: {} to {}", reg_name, value);
+            debug!("set reg: {} to val: {}", reg_name, value);
             reg.set(value);
             Ok("Done")
         } else {
@@ -228,20 +228,20 @@ impl Machine {
         trace!("assignment");
         match &*operation {
             RMLNode::Reg(name) => {
-                debug!("assign {} as {}", &reg_name, name);
+                debug!("assign reg: {} as reg: {}", &reg_name, name);
                 self.get_register_content(name)
                     .and_then(|value| self.set_register_content(&reg_name, value))?;
             }
             RMLNode::Constant(r) => {
-                debug!("assign {} as {}", &reg_name, r);
+                debug!("assign reg: {} as val: {}", &reg_name, r);
                 self.set_register_content(&reg_name, rmlvalue_to_value(r))?;
             }
             RMLNode::Label(s) | RMLNode::Symbol(s) => {
-                debug!("assign {} as {}", &reg_name, s);
+                debug!("assign reg: {} as symbol: {}", &reg_name, s);
                 self.set_register_content(&reg_name, Value::Symbol(s.to_string()))?;
             }
             RMLNode::List(l) => {
-                debug!("assign {} as {:?}", &reg_name, l);
+                debug!("assign reg: {} as list: {:?}", &reg_name, l);
                 self.set_register_content(
                     &reg_name,
                     Value::List(l.iter().map(rmlvalue_to_value).collect()),
@@ -249,7 +249,7 @@ impl Machine {
             }
             RMLNode::Operation(op_name, args) => {
                 debug!(
-                    "assign {} as the result of operating {}",
+                    "assign reg: {} as the result of operating op: {}",
                     &reg_name, op_name
                 );
                 self.perform_operation(op_name, args)
@@ -295,7 +295,7 @@ impl Machine {
                 self.reset_pc();
                 Ok("Done")
             } else {
-                debug!("go on");
+                debug!("don't jump, go on");
                 self.advance_pc()
             }
         } else {
@@ -355,7 +355,7 @@ impl Machine {
         trace!("test");
         match &*operation {
             RMLNode::Operation(op_name, args) => {
-                debug!("test a op: {}", op_name);
+                debug!("test op: {}", op_name);
                 self.perform_operation(op_name, args).and_then(|value| {
                     debug!("test result: {}", value);
                     if let Value::Boolean(_) = value {

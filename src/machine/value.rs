@@ -34,7 +34,7 @@ impl fmt::Debug for Value {
 }
 
 impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Boolean(v) => write!(f, "{}", v),
             Value::Num(v) => write!(f, "{}", v),

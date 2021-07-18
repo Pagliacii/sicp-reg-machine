@@ -242,7 +242,13 @@ fn manipulate_env(op: &'static str, env_ptr: usize, args: &Vec<Value>) -> Value 
         }
         "extend" => {
             let env = envs[env_ptr].extend(args);
-            envs.push(env);
+            if env_ptr + 1 < envs.len() {
+                // existed environment
+                envs[env_ptr + 1] = env;
+            } else {
+                // new environment
+                envs.push(env);
+            }
             Value::EnvPtr(env_ptr + 1)
         }
         other => panic!("[Environment] Unknown request: {}", other),
