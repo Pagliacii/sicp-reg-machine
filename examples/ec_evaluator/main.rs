@@ -225,6 +225,15 @@ lazy_static! {
     };
 }
 
+fn get_global_environment() -> Value {
+    let mut envs = ENVIRONMENTS.lock().unwrap();
+    while envs.len() > 1 {
+        // drop other environments except the global one.
+        envs.pop();
+    }
+    Value::Pointer(0)
+}
+
 fn manipulate_env(op: &'static str, env_ptr: usize, args: &Vec<Value>) -> Value {
     let mut envs = ENVIRONMENTS.lock().unwrap();
     if env_ptr >= envs.len() {
@@ -234,22 +243,31 @@ fn manipulate_env(op: &'static str, env_ptr: usize, args: &Vec<Value>) -> Value 
         "lookup" => envs[env_ptr].lookup(args),
         "define" => {
             envs[env_ptr].insert(args);
-            Value::EnvPtr(env_ptr)
+            Value::Pointer(env_ptr)
         }
         "update" => {
             envs[env_ptr].update(args);
-            Value::EnvPtr(env_ptr)
+            Value::Pointer(env_ptr)
         }
         "extend" => {
-            let env = envs[env_ptr].extend(args);
-            if env_ptr + 1 < envs.len() {
-                // existed environment
-                envs[env_ptr + 1] = env;
-            } else {
-                // new environment
+            let new_ptr: usize;
+            if env_ptr == 0 {
+                // extend the global environment
+                let env = envs[0].extend(args);
                 envs.push(env);
+                new_ptr = envs.len() - 1;
+            } else if env_ptr == envs.len() - 1 {
+                // extend the last one
+                let env = envs.last().unwrap().extend(args);
+                envs.push(env);
+                new_ptr = env_ptr + 1;
+            } else {
+                // extend an existed environment
+                let env = envs[env_ptr].extend(args);
+                envs[env_ptr + 1] = env;
+                new_ptr = env_ptr + 1;
             }
-            Value::EnvPtr(env_ptr + 1)
+            Value::Pointer(new_ptr)
         }
         other => panic!("[Environment] Unknown request: {}", other),
     }
@@ -414,7 +432,7 @@ fn operations() -> Operations {
     operations.insert("user-print", Operation::new(user_print));
     operations.insert(
         "get-global-environment",
-        Operation::new(|| Value::EnvPtr(0)),
+        Operation::new(get_global_environment),
     );
     operations.insert(
         "lookup-variable-value",

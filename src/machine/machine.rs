@@ -338,7 +338,7 @@ impl Machine {
             .stack
             .pop()
             .map_err(|s: &str| MachineError::StackError(s.to_string()))?;
-        debug!("restore {} to {}", reg_name, value);
+        debug!("reg: {} restore to val: {}", reg_name, value);
         self.set_register_content(&reg_name, value)?;
         self.advance_pc()
     }
