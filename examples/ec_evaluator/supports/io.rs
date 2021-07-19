@@ -2,6 +2,7 @@ use std::io::{self, prelude::*};
 
 use fancy_regex::Regex;
 use lazy_static::lazy_static;
+use log::debug;
 use reg_machine::{machine::value::Value, parser::rml_value, rmlvalue_to_value};
 
 use super::{list::list_ref, syntax::is_compound_procedure};
@@ -10,7 +11,7 @@ use super::{list::list_ref, syntax::is_compound_procedure};
 /// Supports multiple lines.
 pub fn read() -> Value {
     lazy_static! {
-        static ref RE: Regex = Regex::new(r"'(\([^'\)]*\)|\w)+(?!')").unwrap();
+        static ref RE: Regex = Regex::new(r"'(\([^'\)]*\)|\w+)+(?!')").unwrap();
     }
     let mut balance = 0;
     let mut result = String::new();
@@ -36,6 +37,7 @@ pub fn read() -> Value {
         result.push(c);
     }
 
+    debug!("read result: {}", result);
     let (_, res) = rml_value(&RE.replace_all(&result, "(quote $1)")).unwrap();
     rmlvalue_to_value(&res)
 }
