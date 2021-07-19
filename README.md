@@ -53,7 +53,7 @@ Valid kinds of constant value:
 | Newton V2                      | See [Exercise 5.3](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e3) and [Section 1.1.7](https://sarabander.github.io/sicp/html/1_002e1.xhtml#g_t1_002e1_002e7) | [newton_v2.rs](examples/newton_v2.rs)                     |
 | Iterative Exponentiation       | See [Exercise 5.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e4)                                                                                            | [iterative_exp.rs](examples/iterative_exp.rs)             |
 | Recursive Exponentiation       | See [Exercise 5.4](https://sarabander.github.io/sicp/html/5_002e1.xhtml#Exercise-5_002e4)                                                                                            | [recursive_exp.rs](examples/recursive_exp.rs)             |
-| The Explicit-Control Evaluator | See [Section 5.4](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4)                                                                                                   | [main.rs](examples/ec_evaluator/main.rs)                  |
+| The Explicit-Control Evaluator | See [Section 5.4](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4) and [controller.scm](examples/ec_evaluator/controller.scm)                                        | [main.rs](examples/ec_evaluator/main.rs)                  |
 
 ### Running
 
@@ -74,7 +74,7 @@ $ cargo run --example <machine-name>
 
 See [5.4 The Explicit-Control Evaluator](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4) for more details.
 
-- Play with it:
+#### Play with it
 
 ```scheme
 $ cargo run --example ec_evaluator
@@ -135,7 +135,7 @@ ok
 (exit)
 ```
 
-- Enable debug logging:
+#### Enable debug logging
 
 ```shell
 # output to stderr
@@ -143,6 +143,58 @@ $ RUST_LOG=debug cargo run --example ec_evaluator
 # redirect to a file. *Note*: direct writes to a file can become a bottleneck due to IO operation times.
 $ RUST_LOG=debug cargo run --example ec_evaluator 2> /path/to/log/file
 ```
+
+#### Currently supports syntax
+
+```scheme
+; number
+1
+1.2
+; boolean
+true
+false
+; string
+"hello"
+"hi"
+"123"
+; symbol
+'hello
+'hi
+; list
+'(1 2 3 4)
+'(a b c)
+'()
+; primitive procedures*
+(+ 1 1)
+(- 1 1)
+(* 2 1.5)
+(/ 1 2)
+; definition
+;; define a variable
+(define a 1)
+;; define a procedure
+(define (inc x) (+ x 1))
+; access and assignment
+a
+(set! a 2)
+a
+; if statement
+(if (> a 1) (display "fizz") (display "buzz"))
+;; or without else branch
+(if (< a 1) (display "without else"))
+; lambda statement
+(lambda (a b) (if (> a b) (display "a")))
+; sequence statements
+(begin (define a 1)
+       (set! a 2)
+       (if (> a 1) (display "hello")))
+; call a procedure
+(+ 1 1)
+(inc 2)
+((lambda (a b) (if (> a b) (display "a"))) 2 1)
+```
+
+See [primitive.rs](examples/ec_evaluator/supports/primitive.rs) for more primitive procedures.
 
 ## License
 
