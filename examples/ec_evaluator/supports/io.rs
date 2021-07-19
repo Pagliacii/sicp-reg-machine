@@ -52,7 +52,6 @@ pub fn display(val: Value) {
 
 pub fn prompt_for_input(val: Value) {
     println!();
-    println!();
     display(val);
     println!();
 }

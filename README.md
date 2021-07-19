@@ -81,7 +81,6 @@ $ cargo run --example ec_evaluator
     Finished dev [unoptimized + debuginfo] target(s) in 0.06s
      Running `target/debug/examples/ec_evaluator`
 
-
 ;;; EC-Eval input:
 (define (factorial n)
   (if (= n 1) 1 (* (factorial (- n 1)) n)))
@@ -89,13 +88,11 @@ $ cargo run --example ec_evaluator
 ;;; EC-Eval value:
 ok
 
-
 ;;; EC-Eval input:
 (factorial 5)
 
 ;;; EC-Eval value:
 120
-
 
 ;;; EC-Eval input:
 (define (factorial n)
@@ -108,13 +105,11 @@ ok
 ;;; EC-Eval value:
 ok
 
-
 ;;; EC-Eval input:
 (factorial 5)
 
 ;;; EC-Eval value:
 120
-
 
 ;;; EC-Eval input:
 (define (append x y)
@@ -123,13 +118,32 @@ ok
 ;;; EC-Eval value:
 ok
 
-
 ;;; EC-Eval input:
 (append '(a b c) '(d e f))
 
 ;;; EC-Eval value:
 (a b c d e f)
 
+;;; EC-Eval input:
+(define (fib n)
+  (if (< n 2)
+      n
+      (+ (fib (- n 1)) (fib (- n 2)))))
+
+;;; EC-Eval value:
+ok
+
+;;; EC-Eval input:
+(fib 5)
+
+;;; EC-Eval value:
+5
+
+;;; EC-Eval input:
+(fib 6)
+
+;;; EC-Eval value:
+8
 
 ;;; EC-Eval input:
 (exit)
