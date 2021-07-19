@@ -74,7 +74,7 @@ $ cargo run --example <machine-name>
 
 See [5.4 The Explicit-Control Evaluator](https://sarabander.github.io/sicp/html/5_002e4.xhtml#g_t5_002e4) for more details.
 
-Play with it:
+- Play with it:
 
 ```scheme
 $ cargo run --example ec_evaluator
@@ -129,6 +129,19 @@ ok
 
 ;;; EC-Eval value:
 (a b c d e f)
+
+
+;;; EC-Eval input:
+(exit)
+```
+
+- Enable debug logging:
+
+```shell
+# output to stderr
+$ RUST_LOG=debug cargo run --example ec_evaluator
+# redirect to a file. *Note*: direct writes to a file can become a bottleneck due to IO operation times.
+$ RUST_LOG=debug cargo run --example ec_evaluator 2> /path/to/log/file
 ```
 
 ## License
