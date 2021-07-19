@@ -47,7 +47,7 @@ pub fn is_boolean_true(val: Value) -> bool {
 pub fn if_alternative(list: Value) -> Value {
     let cdddr = list_rest(&list, 3);
     if is_null_pair(&cdddr) {
-        Value::Boolean(false)
+        Value::new("false")
     } else {
         list_ref(&cdddr, 0)
     }
