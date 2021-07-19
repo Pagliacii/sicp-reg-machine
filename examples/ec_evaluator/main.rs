@@ -191,14 +191,9 @@ fn is_last_one(list: Value) -> bool {
 
 fn adjoin_arg(val: Value, argl: Value) -> Value {
     match (&val, &argl) {
-        (Value::List(l1), Value::List(l2)) => {
-            let mut v = l2.clone();
-            v.extend(l1.clone());
-            Value::List(v)
-        }
-        (other, Value::List(l)) => {
-            let mut v = l.clone();
-            v.push(other.clone());
+        (item, Value::List(list)) => {
+            let mut v = list.clone();
+            v.push(item.clone());
             Value::List(v)
         }
         _ => panic!("Unable to adjoin {} and {}.", val, argl),
@@ -656,6 +651,7 @@ mod evaluator_tests {
 
     #[test]
     fn test_adjoin_arg() {
+        // `(adjoin-arg 'c '(a b)) => (a b c)`
         assert_eq!(
             Value::List(vec![
                 Value::String("a".into()),
@@ -664,15 +660,15 @@ mod evaluator_tests {
             ]),
             adjoin_arg(
                 Value::String("c".into()),
-                Value::List(vec![Value::String("a".into()), Value::String("b".into()),])
+                Value::List(vec![Value::String("a".into()), Value::String("b".into())])
             )
         );
+        // `(adjoin-arg '(c d) '(a b)) => (a b (c d))`
         assert_eq!(
             Value::List(vec![
                 Value::String("a".into()),
                 Value::String("b".into()),
-                Value::String("c".into()),
-                Value::String("d".into()),
+                Value::List(vec![Value::String("c".into()), Value::String("d".into())])
             ]),
             adjoin_arg(
                 Value::List(vec![Value::String("c".into()), Value::String("d".into()),]),
@@ -743,48 +739,59 @@ mod evaluator_tests {
     fn test_extend_environment() {
         let vars = Value::new(vec![Value::new("a"), Value::new("b"), Value::new("c")]);
         let vals = Value::new(vec![Value::new(1), Value::new(1.0), Value::new(1u64)]);
-        let env = extend_environment(vars, vals, get_global_environment());
+        let env = usize::try_from(get_global_environment()).unwrap();
+        let env = manipulate_env("extend", env, &vec![vars, vals]);
+        let env = usize::try_from(env).unwrap();
         assert_eq!(
             Value::Num(1.0),
-            lookup_variable_value(Value::new("a"), env.clone())
+            manipulate_env("lookup", env, &vec![Value::new("a")])
         );
         assert_eq!(
             Value::Num(1.0),
-            lookup_variable_value(Value::new("b"), env.clone())
+            manipulate_env("lookup", env, &vec![Value::new("b")])
         );
-        assert_eq!(Value::Num(1.0), lookup_variable_value(Value::new("c"), env));
+        assert_eq!(
+            Value::Num(1.0),
+            manipulate_env("lookup", env, &vec![Value::new("c")])
+        );
     }
 
     #[test]
     fn test_define_variable() {
-        let env = get_global_environment();
-        define_variable(Value::new("a"), Value::new(1), env.clone());
-        assert_eq!(Value::Num(1.0), lookup_variable_value(Value::new("a"), env));
+        let env = usize::try_from(get_global_environment()).unwrap();
+        manipulate_env("define", env, &vec![Value::new("a"), Value::new(1)]);
+        assert_eq!(
+            Value::Num(1.0),
+            manipulate_env("lookup", env, &vec![Value::new("a")])
+        );
     }
 
     #[test]
     fn test_set_variable_value() {
-        let env = get_global_environment();
-        define_variable(Value::new("a"), Value::new(1), env.clone());
-        set_variable_value(Value::new("a"), Value::new(2), env.clone());
-        assert_eq!(Value::Num(2.0), lookup_variable_value(Value::new("a"), env));
+        let env = usize::try_from(get_global_environment()).unwrap();
+        manipulate_env("define", env, &vec![Value::new("a"), Value::new(1)]);
+        manipulate_env("update", env, &vec![Value::new("a"), Value::new(2)]);
+        assert_eq!(
+            Value::Num(2.0),
+            manipulate_env("lookup", env, &vec![Value::new("a")])
+        );
     }
 
     #[test]
     fn test_lookup_variable_value() {
-        let env = get_global_environment();
-        define_variable(Value::new("a"), Value::new(1), env.clone());
-        let val = lookup_variable_value(Value::new("a"), env.clone());
+        let env = usize::try_from(get_global_environment()).unwrap();
+        manipulate_env("define", env, &vec![Value::new("a"), Value::new(1)]);
+        let val = manipulate_env("lookup", env, &vec![Value::new("a")]);
         assert_eq!(Value::new(1), val);
-        set_variable_value(Value::new("a"), Value::new(2), env.clone());
-        let val = lookup_variable_value(Value::new("a"), env);
+        manipulate_env("update", env, &vec![Value::new("a"), Value::new(2)]);
+        let val = manipulate_env("lookup", env, &vec![Value::new("a")]);
         assert_eq!(Value::new(2), val);
     }
 
     #[test]
     fn test_apply_primitive_procedure() {
-        let env = get_global_environment();
-        let proc = lookup_variable_value(Value::new("+"), env);
+        let env = usize::try_from(get_global_environment()).unwrap();
+        let proc = manipulate_env("lookup", env, &vec![Value::new("+")]);
         let res = apply_primitive_procedure(
             Vec::<Value>::try_from(proc).unwrap(),
             Value::new(vec![Value::new(1), Value::new(1)]),
