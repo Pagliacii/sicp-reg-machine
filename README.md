@@ -206,6 +206,11 @@ a
 (+ 1 1)
 (inc 2)
 ((lambda (a b) (if (> a b) (display "a"))) 2 1)
+; `cond` statement
+(cond ((= a 1) (display "Apple")  (newline))
+      ((= a 2) (display "Banana") (newline))
+      ((= a 3) (display "Cherry") (newline))
+      (else    (display "Oops")   (newline)))
 ```
 
 See [primitive.rs](examples/ec_evaluator/supports/primitive.rs) for more primitive procedures.
