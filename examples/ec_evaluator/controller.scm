@@ -25,6 +25,8 @@
    (branch (label ev-definition))
    (test (op if?) (reg exp))
    (branch (label ev-if))
+   (test (op cond?) (reg exp))
+   (branch (label ev-cond))
    (test (op lambda?) (reg exp))
    (branch (label ev-lambda))
    (test (op begin?) (reg exp))
@@ -185,4 +187,35 @@
    (goto (label signal-error))
  signal-error
    (perform (op user-print) (reg val))
-   (goto (label read-eval-print-loop)))
+   (goto (label read-eval-print-loop))
+ ;; support `cond` statement
+ ev-cond
+   (save continue)
+   (assign exp (op cond-clauses) (reg exp))
+ cond-loop
+   (assign unev (op first-clause) (reg exp))
+   (test (op else-clause?) (reg unev))
+   (branch (label cond-action))
+   (save exp)
+   (save unev)
+   (save env)
+   (assign continue (label cond-decide))
+   (assign exp (op clause-predicate) (reg unev))
+   (goto (label eval-dispatch))
+ cond-decide
+   (restore env)
+   (restore unev)
+   (restore exp)
+   (test (op true?) (reg val))
+   (branch (label cond-action))
+   (test (op last-clause?) (reg exp))
+   (branch (label cond-last-clause))
+   (assign exp (op rest-clauses) (reg exp))
+   (goto (label cond-loop))
+ cond-last-clause
+   (restore continue)
+   (goto (reg continue))
+ cond-action
+   (assign unev (op clause-action) (reg unev))
+   (goto (label ev-sequence))
+)

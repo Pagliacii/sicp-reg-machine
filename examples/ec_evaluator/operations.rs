@@ -120,5 +120,20 @@ pub fn operations() -> Operations {
     operations.insert("assignment-value", Operation::new(CADDR));
     operations.insert("definition-variable", Operation::new(definition_variable));
     operations.insert("definition-value", Operation::new(definition_value));
+    // support `cond` statement
+    operations.insert(
+        "cond?",
+        Operation::new(|exp: Value| is_tagged_list(&exp, "cond")),
+    );
+    operations.insert("cond-clauses", Operation::new(CDR));
+    operations.insert("first-clause", Operation::new(CAR));
+    operations.insert("last-clause?", Operation::new(is_last_one));
+    operations.insert("rest-clauses", Operation::new(CDR));
+    operations.insert("clause-action", Operation::new(CDR));
+    operations.insert("clause-predicate", Operation::new(CAR));
+    operations.insert(
+        "else-clause?",
+        Operation::new(|exp: Value| is_tagged_list(&exp, "else")),
+    );
     operations
 }
