@@ -213,7 +213,13 @@ a
       (else    (display "Oops")   (newline)))
 ```
 
-See [primitive.rs](examples/ec_evaluator/supports/primitive.rs) for more primitive procedures.
+**Note:**
+
+1. See [primitive.rs](examples/ec_evaluator/supports/primitive.rs) for more primitive procedures.
+
+2. `cond` Statement Details:
+
+![cond-statement-flow](examples/ec_evaluator/img/cond-statement-flow.svg)
 
 ## License
 
