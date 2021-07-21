@@ -6,7 +6,7 @@ use std::{
 
 use reg_machine::machine::{
     operation::Operation,
-    value::{ToNumValue, Value},
+    value::{ToNumValue, TryFromValue, Value},
     Operations,
 };
 
@@ -37,35 +37,74 @@ pub fn apply_primitive_procedure(proc: Vec<Value>, argl: Value) -> Value {
     }
 }
 
-fn apply<T>(op: &'static str, left: T, right: T) -> Value
+fn accumulate<T>(items: Vec<f64>, init_val: f64, combiner: &T) -> f64
 where
-    T: ToNumValue
-        + fmt::Display
-        + Add<Output = T>
-        + Sub<Output = T>
-        + Mul<Output = T>
-        + Div<Output = T>
-        + PartialEq
-        + PartialOrd,
+    T: Fn(f64, f64) -> f64,
 {
-    match op {
-        "+" => (left + right).to_value(),
-        "-" => (left - right).to_value(),
-        "*" => (left * right).to_value(),
-        "/" => (left / right).to_value(),
-        "=" => Value::Boolean(left == right),
-        "<" => Value::Boolean(left < right),
-        ">" => Value::Boolean(left > right),
-        "<=" => Value::Boolean(left <= right),
-        ">=" => Value::Boolean(left >= right),
-        _ => panic!("Unable to apply operation {} to {} and {}", op, left, right),
+    if items.is_empty() {
+        init_val
+    } else {
+        combiner(
+            items[0],
+            accumulate(items[1..].to_vec(), init_val, combiner),
+        )
     }
 }
 
-fn calculate(op: &'static str, left: &Value, right: &Value) -> Value {
-    match (left, right) {
-        (Value::Num(l), Value::Num(r)) => apply(op, *l, *r),
-        _ => panic!("Unable to apply operation {} to {} and {}", op, left, right),
+fn addition(items: Vec<f64>) -> f64 {
+    accumulate(items, 0.0, &f64::add)
+}
+
+fn subtraction(mut items: Vec<f64>) -> f64 {
+    if items.is_empty() {
+        panic!("[SUBTRACTION] Requires at lease 1 item.");
+    } else if items.len() == 1 {
+        items.insert(0, 0.0);
+    }
+    accumulate(items, 0.0, &f64::sub)
+}
+
+fn multiplication(items: Vec<f64>) -> f64 {
+    if items.contains(&0.0) {
+        0.0
+    } else {
+        accumulate(items, 1.0, &f64::mul)
+    }
+}
+
+fn division(mut items: Vec<f64>) -> f64 {
+    if items[1..].contains(&0.0) {
+        panic!("[DIVISION] Division by zero.");
+    } else if items.len() == 1 {
+        items.insert(0, 1.0);
+    }
+    accumulate(items, 0.0, &f64::div)
+}
+
+fn comparison<T>(items: Vec<f64>, comparator: T) -> bool
+where
+    T: Fn(&f64, &f64) -> bool,
+{
+    if items.len() < 2 {
+        true
+    } else {
+        comparator(&items[0], &items[1]) && comparison(items[1..].to_vec(), comparator)
+    }
+}
+
+fn do_arithmetic(args: Value, op: &'static str) -> Value {
+    let items = Vec::<f64>::try_from(args).unwrap();
+    match op {
+        "+" => Value::new(addition(items)),
+        "-" => Value::new(subtraction(items)),
+        "*" => Value::new(multiplication(items)),
+        "/" => Value::new(division(items)),
+        "=" => Value::new(comparison(items, f64::eq)),
+        "<" => Value::new(comparison(items, f64::lt)),
+        "<=" => Value::new(comparison(items, f64::le)),
+        ">" => Value::new(comparison(items, f64::gt)),
+        ">=" => Value::new(comparison(items, f64::ge)),
+        _ => panic!("Unsupported arithmetic operator: {}", op),
     }
 }
 
@@ -85,41 +124,20 @@ pub fn primitive_procedures() -> Operations {
             }
         }),
     );
-    procedures.insert(
-        "+",
-        Operation::new(|left: Value, right: Value| calculate("+", &left, &right)),
-    );
-    procedures.insert(
-        "-",
-        Operation::new(|left: Value, right: Value| calculate("-", &left, &right)),
-    );
-    procedures.insert(
-        "*",
-        Operation::new(|left: Value, right: Value| calculate("*", &left, &right)),
-    );
-    procedures.insert(
-        "/",
-        Operation::new(|left: Value, right: Value| calculate("/", &left, &right)),
-    );
-    procedures.insert(
-        "=",
-        Operation::new(|left: Value, right: Value| calculate("=", &left, &right)),
-    );
-    procedures.insert(
-        "<",
-        Operation::new(|left: Value, right: Value| calculate("<", &left, &right)),
-    );
-    procedures.insert(
-        ">",
-        Operation::new(|left: Value, right: Value| calculate(">", &left, &right)),
-    );
+    procedures.insert("+", Operation::new(|args: Value| do_arithmetic(args, "+")));
+    procedures.insert("-", Operation::new(|args: Value| do_arithmetic(args, "-")));
+    procedures.insert("*", Operation::new(|args: Value| do_arithmetic(args, "*")));
+    procedures.insert("/", Operation::new(|args: Value| do_arithmetic(args, "/")));
+    procedures.insert("=", Operation::new(|args: Value| do_arithmetic(args, "=")));
+    procedures.insert("<", Operation::new(|args: Value| do_arithmetic(args, "<")));
+    procedures.insert(">", Operation::new(|args: Value| do_arithmetic(args, ">")));
     procedures.insert(
         "<=",
-        Operation::new(|left: Value, right: Value| calculate("<=", &left, &right)),
+        Operation::new(|args: Value| do_arithmetic(args, "<=")),
     );
     procedures.insert(
         ">=",
-        Operation::new(|left: Value, right: Value| calculate(">=", &left, &right)),
+        Operation::new(|args: Value| do_arithmetic(args, ">=")),
     );
     procedures.insert("exit", Operation::new(|| std::process::exit(0)));
     procedures.insert("display", Operation::new(display));

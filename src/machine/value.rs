@@ -253,50 +253,62 @@ impl TryFromValue for String {
 
 impl TryFromValue for Vec<Value> {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        if let Value::List(val) = v {
-            Ok(val)
-        } else {
-            Err(TypeError::expected("Value::List").got(v.to_string()))
+        match v {
+            Value::List(val) => Ok(val),
+            _ => Ok(vec![v]),
         }
     }
 }
 
 impl TryFromValue for Vec<i32> {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        if let Value::List(val) = v {
-            val.iter().map(|v| i32::try_from(v.clone())).collect()
-        } else {
-            Err(TypeError::expected("Value::List").got(v.to_string()))
+        match v {
+            Value::List(val) => val.iter().map(|v| i32::try_from(v.clone())).collect(),
+            Value::Num(n) => Ok(vec![n as i32]),
+            _ => Err(TypeError::expected("Value::List | Value::Num").got(v.to_string())),
         }
     }
 }
 
 impl TryFromValue for Vec<f64> {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        if let Value::List(val) = v {
-            val.iter().map(|v| f64::try_from(v.clone())).collect()
-        } else {
-            Err(TypeError::expected("Value::List").got(v.to_string()))
+        match v {
+            Value::List(val) => val.iter().map(|v| f64::try_from(v.clone())).collect(),
+            Value::Num(n) => Ok(vec![n]),
+            _ => Err(TypeError::expected("Value::List | Value::Num").got(v.to_string())),
         }
     }
 }
 
 impl TryFromValue for Vec<u64> {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        if let Value::List(val) = v {
-            val.iter().map(|v| u64::try_from(v.clone())).collect()
-        } else {
-            Err(TypeError::expected("Value::List").got(v.to_string()))
+        match v {
+            Value::List(val) => val.iter().map(|v| u64::try_from(v.clone())).collect(),
+            Value::Num(n) => Ok(vec![n as u64]),
+            _ => Err(TypeError::expected("Value::List | Value::Num").got(v.to_string())),
         }
     }
 }
 
 impl TryFromValue for Vec<usize> {
     fn try_from(v: Value) -> Result<Self, TypeError> {
-        if let Value::List(val) = v {
-            val.iter().map(|v| usize::try_from(v.clone())).collect()
-        } else {
-            Err(TypeError::expected("Value::List").got(v.to_string()))
+        match v {
+            Value::List(val) => val.iter().map(|v| usize::try_from(v.clone())).collect(),
+            Value::Num(n) => Ok(vec![n as usize]),
+            _ => Err(TypeError::expected("Value::List | Value::Num").got(v.to_string())),
+        }
+    }
+}
+
+impl TryFromValue for Vec<String> {
+    fn try_from(v: Value) -> Result<Self, TypeError> {
+        match v {
+            Value::List(val) => val.iter().map(|v| String::try_from(v.clone())).collect(),
+            Value::String(s) | Value::Symbol(s) => Ok(vec![s]),
+            _ => Err(
+                TypeError::expected("Value::List | Value::String | Value::Symbol")
+                    .got(v.to_string()),
+            ),
         }
     }
 }
@@ -338,9 +350,17 @@ impl FromValueList for Tuple {
     fn from_value_list(values: &[Value]) -> MResult<Self> {
         let mut iter = values.iter();
         let result = Ok((for_tuples!(
-            #( Tuple::try_from(iter.next().ok_or(
-                MachineError::ToTupleError
-            )?.clone())? ),*
+            #( Tuple::try_from(
+                if (0, Some(0)) == iter.size_hint() {
+                    // Converting is triggered with an empty array.
+                    // Try to convert from a Value::List with the empty vector.
+                    Value::List(vec![])
+                } else {
+                    iter.next().ok_or(
+                        MachineError::ToTupleError
+                    )?.clone()
+                }
+            )? ),*
         )));
 
         // I'm not sure that collecting the remaining items in this way is correct.
