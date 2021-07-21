@@ -1,12 +1,11 @@
 use std::{
     collections::HashMap,
-    fmt,
     ops::{Add, Div, Mul, Sub},
 };
 
 use reg_machine::machine::{
     operation::Operation,
-    value::{ToNumValue, TryFromValue, Value},
+    value::{TryFromValue, Value},
     Operations,
 };
 
