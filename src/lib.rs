@@ -1,12 +1,13 @@
 mod assemble;
 
 pub mod machine;
+pub mod math;
 pub mod parser;
 
 use assemble::assemble;
-use machine::Operations;
 use machine::{
     errors::{MResult, MachineError},
+    procedure::Procedure,
     value::Value,
     Machine,
 };
@@ -16,21 +17,21 @@ use parser::{rml_value, RMLValue};
 /// the given registers, operations, and controller.
 pub fn make_machine(
     register_names: Vec<&str>,
-    operations: &Operations,
+    procedures: &Vec<Procedure>,
     controller_text: &str,
 ) -> MResult<Machine> {
     let mut machine = Machine::new();
     for &reg_name in register_names.iter() {
         machine.allocate_register(reg_name)?;
     }
-    // Provides a `read` operation to read inputs from user,
-    // and a `print` operation to print outputs on the screen.
-    machine.install_operation("read", read_line_buffer);
-    machine.install_operation("print", |v: Value| match v {
+    // Provides a `read` procedure to read inputs from user,
+    // and a `print` procedure to print outputs on the screen.
+    machine.install_procedure("read", 0, |_| read_line_buffer());
+    machine.install_procedure("print", 1, |args: Vec<Value>| match &args[0] {
         Value::String(s) => println!("{}", s),
-        _ => println!("{}", v),
+        _ => println!("{}", args[0]),
     });
-    machine.install_operations(operations);
+    machine.install_procedures(procedures);
     let (insts, labels) =
         assemble(controller_text).map_err(|msg: String| MachineError::UnableAssemble(msg))?;
     machine.install_instructions(insts);

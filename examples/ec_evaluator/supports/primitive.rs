@@ -1,20 +1,17 @@
-use std::{
-    collections::HashMap,
-    ops::{Add, Div, Mul, Sub},
-};
-
-use reg_machine::machine::{
-    operation::Operation,
-    value::{TryFromValue, Value},
-    Operations,
+use reg_machine::{
+    machine::{
+        procedure::Procedure,
+        value::{ToValue, Value},
+    },
+    math,
 };
 
 use super::{
     io::display,
-    list::{is_null_pair, CAR, CDR},
+    list::{is_null_pair, list_ref, list_rest},
 };
 
-pub fn apply_primitive_procedure(proc: Vec<Value>, argl: Value) -> Value {
+pub fn apply_primitive_procedure(proc: Vec<Value>, args: Vec<Value>) -> Value {
     let pair = &proc;
     if pair.len() < 2 || Value::new("primitive") != pair[0] {
         panic!(
@@ -22,130 +19,44 @@ pub fn apply_primitive_procedure(proc: Vec<Value>, argl: Value) -> Value {
             Value::new(proc)
         );
     }
-    let op = match &pair[1] {
-        Value::Op(o) => o.clone(),
-        other => panic!("The `{}` isn't a primitive procedure.", other),
-    };
-    if let Value::List(args) = &argl {
-        op.perform(args.clone()).unwrap()
-    } else {
-        panic!(
-            "Failed to apply a primitive procedure with the argument {}.",
-            argl
-        );
+    if !pair[1].is_procedure() {
+        panic!("The `{}` isn't a primitive procedure.", pair[1]);
     }
+    pair[1].perform(args).unwrap()
 }
 
-fn accumulate<T>(items: Vec<f64>, init_val: f64, combiner: &T) -> f64
-where
-    T: Fn(f64, f64) -> f64,
-{
-    if items.is_empty() {
-        init_val
-    } else {
-        combiner(
-            items[0],
-            accumulate(items[1..].to_vec(), init_val, combiner),
-        )
-    }
-}
-
-fn addition(items: Vec<f64>) -> f64 {
-    accumulate(items, 0.0, &f64::add)
-}
-
-fn subtraction(mut items: Vec<f64>) -> f64 {
-    if items.is_empty() {
-        panic!("[SUBTRACTION] Requires at lease 1 item.");
-    } else if items.len() == 1 {
-        items.insert(0, 0.0);
-    }
-    accumulate(items, 0.0, &f64::sub)
-}
-
-fn multiplication(items: Vec<f64>) -> f64 {
-    if items.contains(&0.0) {
-        0.0
-    } else {
-        accumulate(items, 1.0, &f64::mul)
-    }
-}
-
-fn division(mut items: Vec<f64>) -> f64 {
-    if items[1..].contains(&0.0) {
-        panic!("[DIVISION] Division by zero.");
-    } else if items.len() == 1 {
-        items.insert(0, 1.0);
-    }
-    accumulate(items, 0.0, &f64::div)
-}
-
-fn comparison<T>(items: Vec<f64>, comparator: T) -> bool
-where
-    T: Fn(&f64, &f64) -> bool,
-{
-    if items.len() < 2 {
-        true
-    } else {
-        comparator(&items[0], &items[1]) && comparison(items[1..].to_vec(), comparator)
-    }
-}
-
-fn do_arithmetic(args: Value, op: &'static str) -> Value {
-    let items = Vec::<f64>::try_from(args).unwrap();
-    match op {
-        "+" => Value::new(addition(items)),
-        "-" => Value::new(subtraction(items)),
-        "*" => Value::new(multiplication(items)),
-        "/" => Value::new(division(items)),
-        "=" => Value::new(comparison(items, f64::eq)),
-        "<" => Value::new(comparison(items, f64::lt)),
-        "<=" => Value::new(comparison(items, f64::le)),
-        ">" => Value::new(comparison(items, f64::gt)),
-        ">=" => Value::new(comparison(items, f64::ge)),
-        _ => panic!("Unsupported arithmetic operator: {}", op),
-    }
-}
-
-pub fn primitive_procedures() -> Operations {
-    let mut procedures: Operations = HashMap::new();
-    procedures.insert("car", Operation::new(CAR));
-    procedures.insert("cdr", Operation::new(CDR));
-    procedures.insert("null?", Operation::new(|pair: Value| is_null_pair(&pair)));
-    procedures.insert(
-        "cons",
-        Operation::new(|head: Value, tail: Value| {
-            if let Value::List(mut l) = tail {
-                l.insert(0, head);
-                l.clone()
-            } else {
-                vec![head, tail]
-            }
-        }),
-    );
-    procedures.insert("+", Operation::new(|args: Value| do_arithmetic(args, "+")));
-    procedures.insert("-", Operation::new(|args: Value| do_arithmetic(args, "-")));
-    procedures.insert("*", Operation::new(|args: Value| do_arithmetic(args, "*")));
-    procedures.insert("/", Operation::new(|args: Value| do_arithmetic(args, "/")));
-    procedures.insert("=", Operation::new(|args: Value| do_arithmetic(args, "=")));
-    procedures.insert("<", Operation::new(|args: Value| do_arithmetic(args, "<")));
-    procedures.insert(">", Operation::new(|args: Value| do_arithmetic(args, ">")));
-    procedures.insert(
-        "<=",
-        Operation::new(|args: Value| do_arithmetic(args, "<=")),
-    );
-    procedures.insert(
-        ">=",
-        Operation::new(|args: Value| do_arithmetic(args, ">=")),
-    );
-    procedures.insert("exit", Operation::new(|| std::process::exit(0)));
-    procedures.insert("display", Operation::new(display));
-    procedures.insert("newline", Operation::new(|| println!()));
+pub fn primitive_procedures() -> Vec<Procedure> {
+    let mut procedures: Vec<Procedure> = vec![];
+    procedures.push(Procedure::new("car", 1, |args| list_ref(&args[0], 0)));
+    procedures.push(Procedure::new("cdr", 1, |args| list_rest(&args[0], 1)));
+    procedures.push(Procedure::new("cons", 2, |args| {
+        let head = args[0].clone();
+        let mut tail = args[1].clone();
+        if let Value::List(l) = &mut tail {
+            l.insert(0, head);
+            tail
+        } else {
+            vec![head, tail].to_value()
+        }
+    }));
+    procedures.push(Procedure::new("null?", 1, |args| is_null_pair(&args[0])));
+    procedures.push(Procedure::new("+", 0, math::addition));
+    procedures.push(Procedure::new("-", 1, math::subtraction));
+    procedures.push(Procedure::new("*", 0, math::multiplication));
+    procedures.push(Procedure::new("/", 1, math::division));
+    procedures.push(Procedure::new("=", 0, math::equal));
+    procedures.push(Procedure::new("<", 0, math::less_than));
+    procedures.push(Procedure::new(">", 0, math::greater_than));
+    procedures.push(Procedure::new("<=", 0, math::less_than_or_equal_to));
+    procedures.push(Procedure::new(">=", 0, math::greater_than_or_equal_to));
+    procedures.push(Procedure::new("exit", 0, |_| std::process::exit(0)));
+    procedures.push(Procedure::new("display", 1, |args| display(&args[0])));
+    procedures.push(Procedure::new("newline", 0, |_| println!()));
     procedures
 }
 
 #[cfg(test)]
-mod tests {
+mod primitive_tests {
     use super::super::environment::{get_global_environment, manipulate_env};
     use super::*;
     use reg_machine::machine::value::TryFromValue;

@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use reg_machine::{
-    machine::{operation::Operation, Operations},
-    make_machine,
+    machine::{procedure::Procedure, value::TryFromValue},
+    make_machine, math,
 };
 
 const CONTROLLER_TEXT: &str = r#"
@@ -51,23 +49,22 @@ const CONTROLLER_TEXT: &str = r#"
  done)
 "#;
 
-fn operations() -> Operations {
-    let mut operations: Operations = HashMap::new();
-    operations.insert("newline", Operation::new(|| println!()));
-    operations.insert("eq?", Operation::new(|a: String, b: String| a == b));
-    operations.insert(
-        "noninteger?",
-        Operation::new(|s: String| s.parse::<i32>().is_err()),
-    );
-    operations.insert("<", Operation::new(|a: i32, b: i32| a < b));
-    operations.insert("+", Operation::new(|a: i32, b: i32| a + b));
-    operations.insert("-", Operation::new(|a: i32, b: i32| a - b));
-    operations
+fn procedures() -> Vec<Procedure> {
+    let mut procedures: Vec<Procedure> = vec![];
+    procedures.push(Procedure::new("newline", 0, |_| println!()));
+    procedures.push(Procedure::new("eq?", 2, math::equal));
+    procedures.push(Procedure::new("noninteger?", 1, |args| {
+        i32::try_from(&args[0]).is_err()
+    }));
+    procedures.push(Procedure::new("<", 2, math::less_than));
+    procedures.push(Procedure::new("+", 2, math::addition));
+    procedures.push(Procedure::new("-", 2, math::subtraction));
+    procedures
 }
 
 fn main() {
     let register_names = vec!["continue", "n", "val"];
-    let operations = operations();
-    let mut machine = make_machine(register_names, &operations, &CONTROLLER_TEXT).unwrap();
+    let procedures = procedures();
+    let mut machine = make_machine(register_names, &procedures, CONTROLLER_TEXT).unwrap();
     assert_eq!(Ok("Done"), machine.start());
 }

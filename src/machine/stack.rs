@@ -1,6 +1,6 @@
 //! A stack structure
 
-use super::value::Value;
+use super::value::{ToValue, Value};
 
 #[derive(Debug)]
 pub struct Stack {
@@ -24,8 +24,8 @@ impl Stack {
         self.curr_depth == 0 && self.stack.is_empty()
     }
 
-    pub fn push(&mut self, item: Value) {
-        self.stack.push(item);
+    pub fn push<T: ToValue>(&mut self, item: T) {
+        self.stack.push(item.to_value());
         self.num_pushes += 1;
         self.curr_depth += 1;
         self.max_depth = std::cmp::max(self.curr_depth, self.max_depth);

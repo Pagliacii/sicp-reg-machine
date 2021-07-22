@@ -42,14 +42,6 @@ pub fn list_rest(val: &Value, start: usize) -> Value {
     }
 }
 
-/// Same behavior likes the same name procedure in Scheme.
-pub const CAR: fn(Value) -> Value = |exp: Value| list_ref(&exp, 0);
-pub const CADR: fn(Value) -> Value = |exp: Value| list_ref(&exp, 1);
-pub const CADDR: fn(Value) -> Value = |exp: Value| list_ref(&exp, 2);
-pub const CADDDR: fn(Value) -> Value = |exp: Value| list_ref(&exp, 3);
-pub const CDR: fn(Value) -> Value = |exp: Value| list_rest(&exp, 1);
-pub const CDDR: fn(Value) -> Value = |exp: Value| list_rest(&exp, 2);
-
 pub fn is_null_pair(list: &Value) -> bool {
     if let Value::List(l) = list {
         l.is_empty()
@@ -59,7 +51,7 @@ pub fn is_null_pair(list: &Value) -> bool {
 }
 
 /// Current item is the last one in the vector.
-pub fn is_last_one(list: Value) -> bool {
+pub fn is_last_one(list: &Value) -> bool {
     if let Value::List(l) = list {
         l.len() == 1
     } else {
@@ -67,8 +59,8 @@ pub fn is_last_one(list: Value) -> bool {
     }
 }
 
-pub fn adjoin_arg(val: Value, argl: Value) -> Value {
-    match (&val, &argl) {
+pub fn adjoin_arg(val: &Value, argl: &Value) -> Value {
+    match (val, argl) {
         (item, Value::List(list)) => {
             let mut v = list.clone();
             v.push(item.clone());

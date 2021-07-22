@@ -1,12 +1,6 @@
-use std::collections::HashMap;
-
 use reg_machine::{
-    machine::{
-        operation::Operation,
-        value::{TryFromValue, Value},
-        Operations,
-    },
-    make_machine,
+    machine::{procedure::Procedure, value::TryFromValue},
+    make_machine, math,
 };
 
 const CONTROLLER_TEXT: &str = r#"
@@ -22,20 +16,19 @@ const CONTROLLER_TEXT: &str = r#"
  factorial-done)
 "#;
 
-fn operations() -> Operations {
-    let mut operations: Operations = HashMap::new();
-    operations.insert(">", Operation::new(|a: u64, b: u64| a > b));
-    operations.insert("*", Operation::new(|a: u64, b: u64| a * b));
-    operations.insert("+", Operation::new(|a: u64, b: u64| a + b));
-    operations
+fn procedures() -> Vec<Procedure> {
+    let mut procedures: Vec<Procedure> = vec![];
+    procedures.push(Procedure::new(">", 2, math::greater_than));
+    procedures.push(Procedure::new("*", 2, math::multiplication));
+    procedures.push(Procedure::new("+", 2, math::addition));
+    procedures
 }
 
 fn main() {
     let register_names = vec!["n", "p", "c"];
-    let operations = operations();
-    let mut machine = make_machine(register_names, &operations, &CONTROLLER_TEXT).unwrap();
-    machine.set_register_content("n", Value::new(16)).unwrap();
+    let mut machine = make_machine(register_names, &procedures(), CONTROLLER_TEXT).unwrap();
+    machine.set_register_content("n", 16).unwrap();
     assert_eq!(Ok("Done"), machine.start());
     let value = machine.get_register_content("p").unwrap();
-    println!("factorial(16) = {}", u64::try_from(value).unwrap());
+    println!("factorial(16) = {}", u64::try_from(&value).unwrap());
 }

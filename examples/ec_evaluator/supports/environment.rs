@@ -3,7 +3,10 @@ use std::sync::Mutex;
 
 use lazy_static::lazy_static;
 
-use reg_machine::machine::{value::Value, Operations};
+use reg_machine::machine::{
+    procedure::Procedure,
+    value::{ToValue, Value},
+};
 
 use super::primitive::primitive_procedures;
 
@@ -23,7 +26,7 @@ impl Environment {
         Self(Mutex::new(HashMap::new()))
     }
 
-    fn lookup(&self, args: &Vec<Value>) -> Value {
+    fn lookup(&self, args: &[Value]) -> Value {
         if args.len() < 1 {
             panic!("[LOOKUP] Missing a variable name.");
         }
@@ -35,7 +38,7 @@ impl Environment {
         }
     }
 
-    fn insert(&self, args: &Vec<Value>) {
+    fn insert(&self, args: &[Value]) {
         if args.len() < 2 {
             panic!("[DEFINE] Missing a value.");
         }
@@ -49,7 +52,7 @@ impl Environment {
         env.insert(var, val);
     }
 
-    fn update(&self, args: &Vec<Value>) {
+    fn update(&self, args: &[Value]) {
         if args.len() < 2 {
             panic!("[DEFINE] Missing a value.");
         }
@@ -61,7 +64,7 @@ impl Environment {
         }
     }
 
-    fn extend(&self, args: &Vec<Value>) -> Self {
+    fn extend(&self, args: &[Value]) -> Self {
         if args.len() < 2 {
             panic!("[EXTEND] Missing values.");
         }
@@ -98,13 +101,13 @@ impl Environment {
 }
 
 lazy_static! {
-    static ref PRIMITIVE_PROCEDURES: Operations = primitive_procedures();
+    static ref PRIMITIVE_PROCEDURES: Vec<Procedure> = primitive_procedures();
     static ref ENVIRONMENTS: Mutex<Vec<Environment>> = {
         let global_env: Environment = Environment::new();
-        for (k, v) in PRIMITIVE_PROCEDURES.iter() {
+        for proc in PRIMITIVE_PROCEDURES.iter() {
             global_env.insert_value(
-                k.to_string(),
-                Value::new(vec![Value::new("primitive"), Value::Op(v.clone())]),
+                proc.get_name(),
+                vec![Value::new("primitive"), proc.clone().to_value()].to_value(),
             );
         }
         global_env.insert_value("true".into(), Value::Boolean(true));
@@ -122,11 +125,16 @@ pub fn get_global_environment() -> Value {
     Value::Pointer(0)
 }
 
-pub fn manipulate_env(op: &'static str, env_ptr: usize, args: &Vec<Value>) -> Value {
+pub fn manipulate_env(op: &'static str, env: &Value, args: &[Value]) -> Value {
     let mut envs = ENVIRONMENTS.lock().unwrap();
-    if env_ptr >= envs.len() {
-        panic!("Unknown environment: {}", env_ptr);
-    }
+    let env_ptr = if let Value::Pointer(p) = env {
+        if *p >= envs.len() {
+            panic!("Unknown environment: {}", p);
+        }
+        *p
+    } else {
+        panic!("Unknown environment: {}", env);
+    };
     match op {
         "lookup" => envs[env_ptr].lookup(args),
         "define" => {

@@ -42,32 +42,32 @@ pub fn read() -> Value {
     rmlvalue_to_value(&res)
 }
 
-pub fn display(val: Value) {
+pub fn display(val: &Value) {
     let s = match val {
-        Value::String(v) => v,
+        Value::String(v) => v.to_string(),
         others => others.to_string(),
     };
     print!("{}", s);
 }
 
-pub fn prompt_for_input(val: Value) {
+pub fn prompt_for_input(val: &Value) {
     println!();
     display(val);
     println!();
 }
 
-pub fn announce_output(val: Value) {
+pub fn announce_output(val: &Value) {
     println!();
     display(val);
     println!();
 }
 
-pub fn user_print(s: Value) {
-    if is_compound_procedure(&s) {
+pub fn user_print(s: &Value) {
+    if is_compound_procedure(s) {
         println!(
             "(compound-procedure {} {} <procedure-env>)",
-            list_ref(&s, 1),
-            list_ref(&s, 2),
+            list_ref(s, 1),
+            list_ref(s, 2),
         );
     } else {
         println!("{}", s);

@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-
 use reg_machine::{
-    machine::{operation::Operation, Operations},
-    make_machine,
+    machine::{procedure::Procedure, value::TryFromValue},
+    make_machine, math,
 };
 
 const CONTROLLER_TEXT: &str = r#"
@@ -28,16 +26,20 @@ const CONTROLLER_TEXT: &str = r#"
    (goto (label gcd-loop)))
 "#;
 
-fn operations() -> Operations {
-    let mut operations: Operations = HashMap::new();
-    operations.insert("=", Operation::new(|a: i32, b: i32| a == b));
-    operations.insert("rem", Operation::new(|a: i32, b: i32| a % b));
-    operations
+fn procedures() -> Vec<Procedure> {
+    let mut procedures: Vec<Procedure> = vec![];
+    procedures.push(Procedure::new("=", 2, math::equal));
+    procedures.push(Procedure::new("rem", 2, |args| {
+        let dividend = f64::try_from(&args[0]).unwrap();
+        let divisor = f64::try_from(&args[1]).unwrap();
+        dividend % divisor
+    }));
+    procedures
 }
 
 fn main() {
     let register_names = vec!["a", "b", "t"];
-    let operations = operations();
-    let mut machine = make_machine(register_names, &operations, &CONTROLLER_TEXT).unwrap();
+    let procedures = procedures();
+    let mut machine = make_machine(register_names, &procedures, CONTROLLER_TEXT).unwrap();
     assert_eq!(Ok("Done"), machine.start());
 }

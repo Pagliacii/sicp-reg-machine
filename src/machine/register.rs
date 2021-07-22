@@ -1,6 +1,6 @@
 //! A register structure to save something.
 
-use super::value::Value;
+use super::value::{ToValue, Value};
 
 #[derive(Clone, Debug)]
 pub struct Register {
@@ -18,8 +18,8 @@ impl Register {
         self.contents.clone()
     }
 
-    pub fn set(&mut self, value: Value) {
-        self.contents = value;
+    pub fn set<T: ToValue>(&mut self, value: T) {
+        self.contents = value.to_value();
     }
 }
 
@@ -38,9 +38,9 @@ mod register_tests {
     #[test]
     fn test_set_register_contents() {
         let mut reg: Register = Register::new();
-        let expected = Value::new(12345678);
-        reg.set(expected.clone());
+        let expected = 12345678;
+        reg.set(expected);
         let actual = reg.get();
-        assert_eq!(expected, actual);
+        assert_eq!(Value::new(expected), actual);
     }
 }

@@ -6,12 +6,11 @@ use std::sync::Arc;
 use log::{debug, info, trace, warn};
 
 use super::{
-    errors::{MResult, MachineError, OperationError, RegisterError, TypeError},
-    function::Function,
-    operation::Operation,
+    errors::{MResult, MachineError, ProcedureError, RegisterError, TypeError},
+    procedure::Procedure,
     register::Register,
     stack::Stack,
-    value::{FromValueList, ToValue, TryFromValue, Value},
+    value::{values_to_str, ToValue, Value},
 };
 use crate::{parser::RMLNode, rmlvalue_to_value};
 
@@ -21,7 +20,7 @@ pub struct Machine {
     stack: Stack,
     the_inst_seq: Vec<RMLNode>,
     the_labels: HashMap<String, Vec<RMLNode>>,
-    the_ops: HashMap<String, Operation>,
+    the_procedures: HashMap<String, Procedure>,
     register_table: HashMap<String, Register>,
 }
 
@@ -33,7 +32,7 @@ impl Machine {
             stack: Stack::new(),
             the_inst_seq: Vec::new(),
             the_labels: HashMap::new(),
-            the_ops: HashMap::new(),
+            the_procedures: HashMap::new(),
             register_table: HashMap::new(),
         }
     }
@@ -46,21 +45,22 @@ impl Machine {
         self.stack.print_statistics();
     }
 
-    pub fn install_operation<F, Args, R, S>(&mut self, name: S, f: F)
+    pub fn install_procedure<F, R, S>(&mut self, name: S, arg_num: usize, f: F)
     where
-        F: Function<Args, Result = R>,
-        Args: FromValueList,
+        F: Fn(Vec<Value>) -> R + Send + Sync + 'static,
         R: ToValue,
         S: Into<String>,
     {
-        self.the_ops.insert(name.into(), Operation::new(f));
+        let name: String = name.into();
+        self.the_procedures
+            .insert(name.to_string(), Procedure::new(name, arg_num, f));
     }
 
-    pub fn install_operations(&mut self, operations: &HashMap<&str, Operation>) {
-        self.the_ops.extend(
-            operations
+    pub fn install_procedures(&mut self, procedures: &Vec<Procedure>) {
+        self.the_procedures.extend(
+            procedures
                 .into_iter()
-                .map(|(&name, op)| (name.to_string(), op.clone())),
+                .map(|proc| (proc.get_name(), proc.clone())),
         );
     }
 
@@ -86,16 +86,16 @@ impl Machine {
         }
     }
 
-    pub fn set_register_content<S: Into<String>>(
-        &mut self,
-        reg_name: S,
-        value: Value,
-    ) -> MResult<&'static str> {
+    pub fn set_register_content<S, T>(&mut self, reg_name: S, value: T) -> MResult<&'static str>
+    where
+        S: Into<String>,
+        T: ToValue + std::fmt::Display,
+    {
         trace!("set register content");
         let reg_name = reg_name.into();
         if let Some(reg) = self.register_table.get_mut(&reg_name) {
             debug!("set reg: {} to val: {}", reg_name, value);
-            reg.set(value);
+            reg.set(value.to_value());
             Ok("Done")
         } else {
             warn!("unknown register: {}", reg_name);
@@ -107,37 +107,34 @@ impl Machine {
         self.register_table.len() + 2
     }
 
-    pub fn total_operations(&self) -> usize {
-        self.the_ops.len() + 2
+    pub fn total_procedures(&self) -> usize {
+        self.the_procedures.len() + 2
     }
 
-    pub fn call_operation<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> MResult<Value> {
-        trace!("call an operation");
+    pub fn call_procedure<S: Into<String>>(&mut self, name: S, args: Vec<Value>) -> MResult<Value> {
+        trace!("call a procedure");
         let name = name.into();
         let res = Ok(Value::new("Done".to_string()));
         match name.as_str() {
             "initialize-stack" => {
-                debug!("call builtin op: initialize-stack");
+                debug!("call a builtin procedure: initialize-stack");
                 self.initialize_stack();
                 res
             }
             "print-stack-statistics" => {
-                debug!("call builtin op: print-stack-statistics");
+                debug!("call a builtin procedure: print-stack-statistics");
                 self.print_stack_statistics();
                 res
             }
             _ => {
                 debug!(
-                    "call op: {} with args: ({})",
+                    "call a procedure: {} with args: {}",
                     name,
-                    args.iter()
-                        .map(|v| v.to_string())
-                        .collect::<Vec<String>>()
-                        .join(" ")
+                    values_to_str(&args)
                 );
-                self.the_ops.get(&name).map_or_else(
-                    || Err(OperationError::NotFound(name).into()),
-                    |op| op.perform(args),
+                self.the_procedures.get(&name).map_or_else(
+                    || Err(ProcedureError::NotFound(name).into()),
+                    |op| op.execute(args),
                 )
             }
         }
@@ -147,8 +144,8 @@ impl Machine {
         &self.stack
     }
 
-    pub fn operations(&self) -> &HashMap<String, Operation> {
-        &self.the_ops
+    pub fn procedures(&self) -> &HashMap<String, Procedure> {
+        &self.the_procedures
     }
 
     pub fn install_instructions(&mut self, insts: Vec<RMLNode>) {
@@ -169,7 +166,7 @@ impl Machine {
     pub fn execute(&mut self) -> MResult<&'static str> {
         trace!("execute instructions");
         loop {
-            if let Ok(pointer) = usize::try_from(self.pc.get()) {
+            if let Value::Pointer(pointer) = self.pc.get() {
                 debug!("current pc: {}", pointer);
                 if pointer == self.the_inst_seq.len() {
                     info!("finished");
@@ -201,8 +198,8 @@ impl Machine {
 
     fn advance_pc(&mut self) -> MResult<&'static str> {
         trace!("increment the pc register");
-        if let Value::Num(value) = self.pc.get() {
-            self.pc.set(Value::Num(value + 1.0));
+        if let Value::Pointer(p) = self.pc.get() {
+            self.pc.set(Value::Pointer(p + 1));
             debug!("new pc: {}", self.pc.get());
             Ok("Done")
         } else {
@@ -217,7 +214,7 @@ impl Machine {
     fn reset_pc(&mut self) {
         trace!("reset the pc register");
         debug!("reset pc: {} to 0", self.pc.get());
-        self.pc.set(Value::new(0));
+        self.pc.set(Value::Pointer(0));
     }
 
     fn execute_assignment(
@@ -267,7 +264,7 @@ impl Machine {
                 debug!("extract from a register: {}", reg_name);
                 let value = self.get_register_content(reg_name)?;
                 if let Value::Symbol(label) = value {
-                    debug!("label: {}", &label);
+                    debug!("label: {}", label);
                     Ok(label)
                 } else {
                     warn!("unexpected type: {}", value);
@@ -358,7 +355,7 @@ impl Machine {
                 debug!("test op: {}", op_name);
                 self.perform_operation(op_name, args).and_then(|value| {
                     debug!("test result: {}", value);
-                    if let Value::Boolean(_) = value {
+                    if value.is_bool() {
                         self.flag.set(value);
                         self.advance_pc()
                     } else {
@@ -392,13 +389,9 @@ impl Machine {
         debug!(
             "op: {} performs with args: ({})",
             op_name,
-            op_args
-                .iter()
-                .map(|v| v.to_string())
-                .collect::<Vec<String>>()
-                .join(" ")
+            values_to_str(&op_args)
         );
-        self.call_operation(op_name, op_args)
+        self.call_procedure(op_name, op_args)
     }
 }
 
@@ -411,7 +404,7 @@ mod machine_tests {
         let m = Machine::new();
         assert!(m.stack.is_empty());
         assert_eq!(m.total_registers(), 2);
-        assert_eq!(m.total_operations(), 2);
+        assert_eq!(m.total_procedures(), 2);
     }
 
     #[test]
@@ -430,49 +423,54 @@ mod machine_tests {
     }
 
     #[test]
-    fn test_builtin_operations() {
+    fn test_builtin_procedures() {
         let expected = Value::new("Done".to_string());
         let mut m = Machine::new();
-        let res = m.call_operation("print-stack-statistics", vec![]);
+        let res = m.call_procedure("print-stack-statistics", vec![]);
         assert!(res.is_ok());
         assert_eq!(expected, res.unwrap());
 
-        let res = m.call_operation("initialize-stack", vec![]);
+        let res = m.call_procedure("initialize-stack", vec![]);
         assert!(res.is_ok());
         assert_eq!(expected, res.unwrap());
     }
 
     #[test]
-    fn test_install_operation() {
+    fn test_install_procedure() {
         let mut m = Machine::new();
-        m.install_operation("add", |a: i32, b: i32| a + b);
-        let res = m.call_operation("add", vec![Value::new(1), Value::new(1)]);
-        assert!(res.is_ok());
+        m.install_procedure("add", 2, |args: Vec<Value>| {
+            args[0].clone() + args[1].clone()
+        });
+        let res = m.call_procedure("add", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(2)), res);
     }
 
     #[test]
-    fn test_install_operations() {
-        let mut operations: HashMap<&str, Operation> = HashMap::new();
-        operations.insert("add", Operation::new(|a: i32, b: i32| a + b));
-        operations.insert("sub", Operation::new(|a: i32, b: i32| a - b));
-        operations.insert("mut", Operation::new(|a: i32, b: i32| a * b));
-        operations.insert("div", Operation::new(|a: i32, b: i32| a / b));
+    fn test_install_procedures() {
+        let mut procedures: Vec<Procedure> = vec![];
+        procedures.push(Procedure::new("add", 2, |args: Vec<Value>| {
+            args[0].clone() + args[1].clone()
+        }));
+        procedures.push(Procedure::new("sub", 2, |args: Vec<Value>| {
+            args[0].clone() - args[1].clone()
+        }));
+        procedures.push(Procedure::new("mut", 2, |args: Vec<Value>| {
+            args[0].clone() * args[1].clone()
+        }));
+        procedures.push(Procedure::new("div", 2, |args: Vec<Value>| {
+            args[0].clone() / args[1].clone()
+        }));
 
         let mut m = Machine::new();
-        m.install_operations(&operations);
+        m.install_procedures(&procedures);
 
-        let res = m.call_operation("add", vec![Value::new(1), Value::new(1)]);
-        assert!(res.is_ok());
+        let res = m.call_procedure("add", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(2)), res);
-        let res = m.call_operation("sub", vec![Value::new(1), Value::new(1)]);
-        assert!(res.is_ok());
+        let res = m.call_procedure("sub", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(0)), res);
-        let res = m.call_operation("mut", vec![Value::new(1), Value::new(1)]);
-        assert!(res.is_ok());
+        let res = m.call_procedure("mut", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(1)), res);
-        let res = m.call_operation("div", vec![Value::new(1), Value::new(1)]);
-        assert!(res.is_ok());
+        let res = m.call_procedure("div", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(1)), res);
     }
 
@@ -486,11 +484,11 @@ mod machine_tests {
     #[test]
     fn test_advance_pc() {
         let mut m = Machine::new();
-        m.pc.set(Value::new(0));
+        m.pc.set(Value::Pointer(0));
         let res = m.advance_pc();
         assert_eq!(Ok("Done"), res);
         let actual = m.pc.get();
-        assert_eq!(Value::Num(1.0), actual);
+        assert_eq!(Value::Pointer(1), actual);
     }
 
     #[test]
@@ -502,7 +500,7 @@ mod machine_tests {
 
         let actual = m.get_register_content(&name);
         assert_eq!(Ok(Value::Symbol("*unassigned*".to_string())), actual);
-        let res = m.set_register_content(&name, 1.to_value());
+        let res = m.set_register_content(&name, 1);
         assert_eq!(Ok("Done"), res);
         let actual = m.get_register_content(&name);
         assert_eq!(Ok(Value::Num(1.0)), actual);

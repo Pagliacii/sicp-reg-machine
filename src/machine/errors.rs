@@ -6,7 +6,7 @@ use thiserror::Error;
 #[derive(Debug, Error, PartialEq)]
 pub enum MachineError {
     #[error(transparent)]
-    OperationError(#[from] OperationError),
+    ProcedureError(#[from] ProcedureError),
     #[error(transparent)]
     TypeError(#[from] TypeError),
     #[error(transparent)]
@@ -65,17 +65,19 @@ impl TypeError {
 }
 
 #[derive(Debug, Error, PartialEq)]
-pub enum OperationError {
-    #[error("Operation {0} not found")]
+pub enum ProcedureError {
+    #[error("Procedure {0} not found")]
     NotFound(String),
-    #[error("Operation {0} call failure")]
-    CallFailure(String),
-    #[error("Operation {op_name} call with an invalid type {type_name} of argument {arg_name}")]
-    InvalidArgType {
-        op_name: String,
-        arg_name: String,
-        type_name: String,
+    #[error("Failed to execute procedure {0}")]
+    ExecuteFailure(String),
+    #[error("Procedure {name} expected {expected} arguments, got {got}.")]
+    ArgsTooFew {
+        name: String,
+        expected: usize,
+        got: usize,
     },
+    #[error("Expected a procedure to be performed, got {0}")]
+    UnablePerform(String),
 }
 
 #[derive(Debug, Error, PartialEq)]

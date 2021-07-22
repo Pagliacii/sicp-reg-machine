@@ -1,12 +1,11 @@
-use std::collections::HashMap;
-
 use reg_machine::{
-    machine::{operation::Operation, Operations},
+    machine::{procedure::Procedure, value::TryFromValue},
     make_machine,
 };
 
 const CONTROLLER_TEXT: &str = r#"
 (controller
+   (perform (op print) (const "Please enter a positive number:"))
    (assign x (op read))
    (assign g (const 1.0))
  test-g
@@ -20,22 +19,24 @@ const CONTROLLER_TEXT: &str = r#"
  done)
 "#;
 
-fn operations() -> Operations {
-    let mut operations: Operations = HashMap::new();
-    operations.insert(
-        "good-enough?",
-        Operation::new(|guess: f64, x: f64| 0.001 > (guess.powi(2) - x).abs()),
-    );
-    operations.insert(
-        "improve",
-        Operation::new(|guess: f64, x: f64| (guess + x / guess) / 2.0),
-    );
-    operations
+fn procedures() -> Vec<Procedure> {
+    let mut procedures: Vec<Procedure> = vec![];
+    procedures.push(Procedure::new("good-enough?", 2, |args| {
+        let guess = f64::try_from(&args[0]).unwrap();
+        let x = f64::try_from(&args[1]).unwrap();
+        0.001 > (guess.powi(2) - x).abs()
+    }));
+    procedures.push(Procedure::new("improve", 2, |args| {
+        let guess = f64::try_from(&args[0]).unwrap();
+        let x = f64::try_from(&args[1]).unwrap();
+        (guess + x / guess) / 2.0
+    }));
+    procedures
 }
 
 fn main() {
     let register_names = vec!["g", "t", "x"];
-    let operations = operations();
-    let mut machine = make_machine(register_names, &operations, &CONTROLLER_TEXT).unwrap();
+    let procedures = procedures();
+    let mut machine = make_machine(register_names, &procedures, CONTROLLER_TEXT).unwrap();
     assert_eq!(Ok("Done"), machine.start());
 }
