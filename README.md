@@ -167,6 +167,9 @@ $ RUST_LOG=debug cargo run --example ec_evaluator 2> /path/to/log/file
 ; boolean
 true
 false
+;; or
+#t
+#f
 ; string
 "hello"
 "hi"
@@ -216,6 +219,10 @@ a
   (cond ((< x 0) (- x))
         ((= x 0) 0)
         (else (+ x))))
+; logical composition operations
+(and #t #t #t)    ;; zero or more arbitrary arguments
+(or #f #f #f #f)  ;; zero or more arbitrary arguments
+(not #f)          ;; requires exactly 1 argument
 ```
 
 **Note:**
