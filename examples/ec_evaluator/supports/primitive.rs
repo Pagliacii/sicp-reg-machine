@@ -52,6 +52,32 @@ pub fn primitive_procedures() -> Vec<Procedure> {
     procedures.push(Procedure::new("exit", 0, |_| std::process::exit(0)));
     procedures.push(Procedure::new("display", 1, |args| display(&args[0])));
     procedures.push(Procedure::new("newline", 0, |_| println!()));
+    // Support logical composition operations: `and`, `or` and `not`.
+    procedures.push(Procedure::new("and", 0, |args| {
+        for value in args.iter() {
+            if value.is_false() {
+                return false.to_value();
+            }
+        }
+        args.last().map_or_else(|| true.to_value(), |v| v.clone())
+    }));
+    procedures.push(Procedure::new("or", 0, |args| {
+        for value in args.iter() {
+            if !value.is_bool() {
+                return value.clone();
+            }
+            if value.is_true() {
+                return true.to_value();
+            }
+        }
+        false.to_value()
+    }));
+    procedures.push(Procedure::new("not", 1, |args| {
+        if args.len() > 1 {
+            panic!("The procedure #[not] has been called with {} arguments; it requires exactly 1 argument.", args.len());
+        }
+        args[0].is_false()
+    }));
     procedures
 }
 
