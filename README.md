@@ -182,6 +182,10 @@ false
 '(1 2 3 4)
 '(a b c)
 '()
+; manipulate pair
+(define p (cons 1 2))
+(car p) ; => 1
+(cdr p) ; => 2
 ; primitive procedures*
 (+ 1 1)
 (- 1 1)

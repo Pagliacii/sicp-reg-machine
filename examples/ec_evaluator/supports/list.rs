@@ -31,7 +31,16 @@ pub fn list_rest(val: &Value, start: usize) -> Value {
                 if start == 1 { "" } else { "safe-" },
             );
         }
-        Value::new(l[start..].to_vec())
+        let rest = l[start..].to_vec();
+        if rest.len() == 1 {
+            if rest[0].is_nil() {
+                Value::List(vec![])
+            } else {
+                rest[0].clone()
+            }
+        } else {
+            Value::new(rest)
+        }
     } else {
         panic!(
             "The object {}, passed as {} argument to {}cdr, is not the correct type.",
@@ -53,7 +62,11 @@ pub fn is_null_pair(list: &Value) -> bool {
 /// Current item is the last one in the vector.
 pub fn is_last_one(list: &Value) -> bool {
     if let Value::List(l) = list {
-        l.len() == 1
+        if l.len() == 2 {
+            l[1].is_nil()
+        } else {
+            l.len() == 1
+        }
     } else {
         false
     }

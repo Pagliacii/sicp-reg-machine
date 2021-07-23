@@ -259,6 +259,7 @@ pub fn values_to_str(vals: &Vec<Value>) -> String {
     format!(
         "({})",
         vals.iter()
+            .filter(|v| !v.is_nil())
             .map(|v| v.to_string())
             .collect::<Vec<String>>()
             .join(" ")

@@ -55,6 +55,10 @@ pub fn rmlvalue_to_value(r: &RMLValue) -> Value {
         RMLValue::Num(n) => Value::Num(*n as f64),
         RMLValue::Str(s) => Value::String(s.to_string()),
         RMLValue::Symbol(s) => Value::Symbol(s.to_string()),
-        RMLValue::List(l) => Value::List(l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>()),
+        RMLValue::List(l) => {
+            let mut list = l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>();
+            list.push(Value::Nil);
+            Value::List(list)
+        }
     }
 }
