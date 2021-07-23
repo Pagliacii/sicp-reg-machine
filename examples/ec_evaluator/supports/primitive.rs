@@ -78,6 +78,7 @@ pub fn primitive_procedures() -> Vec<Procedure> {
         }
         args[0].is_false()
     }));
+    procedures.push(Procedure::new("list", 0, |args| args.to_value()));
     procedures
 }
 

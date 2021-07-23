@@ -178,6 +178,7 @@ false
 'hello
 'hi
 ; list
+(list 1 2 3 4)
 '(1 2 3 4)
 '(a b c)
 '()
