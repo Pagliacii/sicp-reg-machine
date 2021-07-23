@@ -16,6 +16,56 @@ fn tag_checker(name: &'static str, tag: &'static str) -> Procedure {
     Procedure::new(name, 1, move |args| is_tagged_list(&args[0], tag))
 }
 
+fn let_to_combination(args: Vec<Value>) -> Vec<Value> {
+    // `(let ((<var_1> <exp_1>) ... (<var_n> <exp_n>)) <body>)`
+    // or "Named `let`": `(let <var> <bindings> <body>)`
+    let exp = Vec::<Value>::try_from(&args[0]).unwrap();
+    // bindings: `((<var_1> <exp_1>) ... (<var_n> <exp_n>))`
+    let bindings: Vec<Value>;
+    let body: Value;
+    let mut variable: Option<Value> = None;
+    if exp[1].is_symbol() {
+        // Named `let`
+        bindings = Vec::<Value>::try_from(&exp[2]).unwrap();
+        body = exp[3].clone();
+        variable = Some(exp[1].clone());
+    } else {
+        // Normal `let`
+        bindings = Vec::<Value>::try_from(&exp[1]).unwrap();
+        body = exp[2].clone();
+    }
+
+    // vars: `(<var_1> ... <var_n>)`
+    let mut vars: Vec<Value> = vec![];
+    // exps: `(<exp_1> ... <exp_n>)`
+    let mut exps: Vec<Value> = vec![];
+    for pair in bindings.iter() {
+        // pair: (<var_n> <exp_n>)
+        let pair = Vec::<Value>::try_from(pair).unwrap();
+        vars.push(pair[0].clone());
+        exps.push(pair[1].clone());
+    }
+
+    if let Some(var) = variable {
+        // => `(begin (define (<var> <vars>) <body>) (<var> <exps>))`
+        vars.insert(0, var.clone()); // => `(<var> <vars>)`
+        exps.insert(0, var.clone()); // => `(<var> <exps>)`
+
+        // `(define (<var> <vars>) <body>)`
+        let define_stat = vec!["define".to_value(), vars.to_value(), body];
+        let mut result = vec!["begin".to_value()];
+        result.push(define_stat.to_value());
+        result.push(exps.to_value());
+        result
+    } else {
+        // => `(lambda (<var_1> ... <var_n>) <body>)`
+        let lambda = vec!["lambda".to_value(), vars.to_value(), body];
+        // => `((lambda (<var_1> ... <var_n>) <body>) <exp_1> ... <exp_2>)`
+        exps.insert(0, lambda.to_value());
+        exps
+    }
+}
+
 pub fn operations() -> Vec<Procedure> {
     // Same behavior likes the same name procedure in Scheme.
     let car = Procedure::new("car", 1, |args| list_ref(&args[0], 0));
@@ -128,25 +178,7 @@ pub fn operations() -> Vec<Procedure> {
     operations.push(tag_checker("else-clause?", "else"));
     // support `let` statement, as a syntactic sugar
     operations.push(tag_checker("let?", "let"));
-    operations.push(Procedure::new("let->combination", 1, |args| {
-        // `(let ((<var_1> <exp_1>) ... (<var_n> <exp_n>)) <body>)`
-        let exp = Vec::<Value>::try_from(&args[0]).unwrap();
-        // `((<var_1> <exp_1>) ... (<var_n> <exp_n>))`
-        let var_pairs = Vec::<Value>::try_from(&exp[1]).unwrap();
-        let mut vars: Vec<Value> = vec![];
-        let mut exps: Vec<Value> = vec![];
-        for pair in var_pairs.iter() {
-            // pair: (<var_n> <exp_n>)
-            let pair = Vec::<Value>::try_from(pair).unwrap();
-            vars.push(pair[0].clone());
-            exps.push(pair[1].clone());
-        }
-        // => `(lambda (<var_1> ... <var_n>) <body>)`
-        let lambda = vec!["lambda".to_value(), vars.to_value(), exp[2].clone()];
-        // => `((lambda (<var_1> ... <var_n>) <body>) <exp_1> ... <exp_2>)`
-        exps.insert(0, lambda.to_value());
-        exps
-    }));
+    operations.push(Procedure::new("let->combination", 1, let_to_combination));
     // support `let*` statement, as a syntactic sugar
     operations.push(tag_checker("let*?", "let*"));
     operations.push(Procedure::new("let*->nested-lets", 1, |args| {

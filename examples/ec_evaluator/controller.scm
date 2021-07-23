@@ -225,7 +225,7 @@
  ;; support `let` statement, as a syntactic sugar
  ev-let
    (assign exp (op let->combination) (reg exp))
-   (goto (label ev-application))
+   (goto (label eval-dispatch))
  ;; support `let*` statement, as a syntactic sugar
  ev-let*
    (assign exp (op let*->nested-lets) (reg exp))
