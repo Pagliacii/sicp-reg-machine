@@ -111,7 +111,9 @@ lazy_static! {
             );
         }
         global_env.insert_value("true".into(), Value::Boolean(true));
+        global_env.insert_value("#t".into(), Value::Boolean(true));
         global_env.insert_value("false".into(), Value::Boolean(false));
+        global_env.insert_value("#f".into(), Value::Boolean(false));
         Mutex::new(vec![global_env])
     };
 }
