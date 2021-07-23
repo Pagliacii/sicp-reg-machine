@@ -31,6 +31,8 @@
    (branch (label ev-lambda))
    (test (op let?) (reg exp))
    (branch (label ev-let))
+   (test (op let*?) (reg exp))
+   (branch (label ev-let*))
    (test (op begin?) (reg exp))
    (branch (label ev-begin))
    (test (op application?) (reg exp))
@@ -224,4 +226,8 @@
  ev-let
    (assign exp (op let->combination) (reg exp))
    (goto (label ev-application))
+ ;; support `let*` statement, as a syntactic sugar
+ ev-let*
+   (assign exp (op let*->nested-lets) (reg exp))
+   (goto (label ev-let))
 )

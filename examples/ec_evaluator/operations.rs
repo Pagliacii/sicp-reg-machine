@@ -147,5 +147,27 @@ pub fn operations() -> Vec<Procedure> {
         exps.insert(0, lambda.to_value());
         exps
     }));
+    // support `let*` statement, as a syntactic sugar
+    operations.push(tag_checker("let*?", "let*"));
+    operations.push(Procedure::new("let*->nested-lets", 1, |args| {
+        // `(let* ((<var_1> <exp_1>) ... (<var_n> <exp_n>)) <body>)`
+        let exp = Vec::<Value>::try_from(&args[0]).unwrap();
+        let mut body = exp[2].clone();
+        // `((<var_1> <exp_1>) ... (<var_n> <exp_n>))`
+        let var_pairs = Vec::<Value>::try_from(&exp[1]).unwrap();
+        // => ```scheme
+        // (let ((<var_1> <exp_1))
+        //   (let ((<var_2> <exp_2>))
+        //     ...
+        //     (let ((<var_n> <exp_n>))
+        //       <body>)
+        //     ...)```
+        for pair in var_pairs.into_iter().rev() {
+            // temp: (let ((<var_n> <exp_n>)) <body>)
+            let temp = vec!["let".to_value(), vec![pair].to_value(), body];
+            body = temp.to_value()
+        }
+        body
+    }));
     operations
 }
