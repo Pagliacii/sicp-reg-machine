@@ -1,6 +1,6 @@
 use reg_machine::machine::{
     procedure::Procedure,
-    value::{TryFromValue, Value},
+    value::{ToValue, TryFromValue, Value},
 };
 
 use super::supports::{
@@ -126,5 +126,26 @@ pub fn operations() -> Vec<Procedure> {
     operations.push(Procedure::duplicate(&cdr, "clause-action"));
     operations.push(Procedure::duplicate(&car, "clause-predicate"));
     operations.push(tag_checker("else-clause?", "else"));
+    // support `let` statement, as a syntactic sugar
+    operations.push(tag_checker("let?", "let"));
+    operations.push(Procedure::new("let->combination", 1, |args| {
+        // `(let ((<var_1> <exp_1>) ... (<var_n> <exp_n>)) <body>)`
+        let exp = Vec::<Value>::try_from(&args[0]).unwrap();
+        // `((<var_1> <exp_1>) ... (<var_n> <exp_n>))`
+        let var_pairs = Vec::<Value>::try_from(&exp[1]).unwrap();
+        let mut vars: Vec<Value> = vec![];
+        let mut exps: Vec<Value> = vec![];
+        for pair in var_pairs.iter() {
+            // pair: (<var_n> <exp_n>)
+            let pair = Vec::<Value>::try_from(pair).unwrap();
+            vars.push(pair[0].clone());
+            exps.push(pair[1].clone());
+        }
+        // => `(lambda (<var_1> ... <var_n>) <body>)`
+        let lambda = vec!["lambda".to_value(), vars.to_value(), exp[2].clone()];
+        // => `((lambda (<var_1> ... <var_n>) <body>) <exp_1> ... <exp_2>)`
+        exps.insert(0, lambda.to_value());
+        exps
+    }));
     operations
 }

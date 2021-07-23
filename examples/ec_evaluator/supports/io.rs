@@ -44,6 +44,7 @@ pub fn read() -> Value {
 
 pub fn display(val: &Value) {
     let s = match val {
+        Value::Nil => String::from(";Unspecified return value"),
         Value::String(v) => v.to_string(),
         others => others.to_string(),
     };
@@ -51,6 +52,7 @@ pub fn display(val: &Value) {
 }
 
 pub fn prompt_for_input(val: &Value) {
+    println!();
     println!();
     display(val);
     println!();
@@ -64,12 +66,12 @@ pub fn announce_output(val: &Value) {
 
 pub fn user_print(s: &Value) {
     if is_compound_procedure(s) {
-        println!(
+        print!(
             "(compound-procedure {} {} <procedure-env>)",
             list_ref(s, 1),
             list_ref(s, 2),
         );
     } else {
-        println!("{}", s);
+        display(s)
     }
 }
