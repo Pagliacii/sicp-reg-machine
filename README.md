@@ -223,6 +223,21 @@ a
 (and #t #t #t)    ;; zero or more arbitrary arguments
 (or #f #f #f #f)  ;; zero or more arbitrary arguments
 (not #f)          ;; requires exactly 1 argument
+; `let` statement, a syntactic sugar
+(let ((a 1) (b 2) (c 3))
+  (display (+ a b c)))
+; `let*` statement, a syntactic sugar
+(let* ((x 3) (y (+ x 2)) (z (+ x y 5)))
+  (* x z))
+; "Named `let`" statement: `(let <var> <bindings> <body>)`
+(define (fib n)
+  (let fib-iter ((a 1)
+                 (b 0)
+                 (count n))
+    (if (= count 0)
+        b
+        (fib-iter (+ a b) a (- count 1)))))
+(fib 50) ; => 12586269025
 ```
 
 **Note:**
