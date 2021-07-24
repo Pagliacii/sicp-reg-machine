@@ -3,7 +3,7 @@ use reg_machine::{
         procedure::Procedure,
         value::{ToValue, Value},
     },
-    math,
+    make_proc, math,
 };
 
 use super::{
@@ -27,19 +27,18 @@ pub fn apply_primitive_procedure(proc: Vec<Value>, args: Vec<Value>) -> Value {
 
 pub fn primitive_procedures() -> Vec<Procedure> {
     let mut procedures: Vec<Procedure> = vec![];
-    procedures.push(Procedure::new("car", 1, |args| list_ref(&args[0], 0)));
-    procedures.push(Procedure::new("cdr", 1, |args| list_rest(&args[0], 1)));
-    procedures.push(Procedure::new("cons", 2, |args| {
-        let head = args[0].clone();
-        let mut tail = args[1].clone();
+    procedures.push(make_proc!("car", 1, |list: Value| list_ref(&list, 0)));
+    procedures.push(make_proc!("cdr", 1, |list: Value| list_rest(&list, 1)));
+    procedures.push(make_proc!("cons", 2, |head: Value, tail: Value| {
+        let mut tail = tail.clone();
         if let Value::List(l) = &mut tail {
             l.insert(0, head);
             tail
         } else {
-            vec![head, tail].to_value()
+            vec![head, tail, Value::Nil].to_value()
         }
     }));
-    procedures.push(Procedure::new("null?", 1, |args| is_null_pair(&args[0])));
+    procedures.push(make_proc!("null?", 1, |pair: Value| is_null_pair(&pair)));
     procedures.push(Procedure::new("+", 0, math::addition));
     procedures.push(Procedure::new("-", 1, math::subtraction));
     procedures.push(Procedure::new("*", 0, math::multiplication));
@@ -49,9 +48,9 @@ pub fn primitive_procedures() -> Vec<Procedure> {
     procedures.push(Procedure::new(">", 0, math::greater_than));
     procedures.push(Procedure::new("<=", 0, math::less_than_or_equal_to));
     procedures.push(Procedure::new(">=", 0, math::greater_than_or_equal_to));
-    procedures.push(Procedure::new("exit", 0, |_| std::process::exit(0)));
-    procedures.push(Procedure::new("display", 1, |args| display(&args[0])));
-    procedures.push(Procedure::new("newline", 0, |_| println!()));
+    procedures.push(make_proc!("exit", |_| std::process::exit(0)));
+    procedures.push(make_proc!("display", 1, |v: Value| display(&v)));
+    procedures.push(make_proc!("newline", |_| println!()));
     // Support logical composition operations: `and`, `or` and `not`.
     procedures.push(Procedure::new("and", 0, |args| {
         for value in args.iter() {

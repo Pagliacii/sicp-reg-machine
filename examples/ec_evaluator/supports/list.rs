@@ -1,16 +1,23 @@
+use log::debug;
 use reg_machine::machine::value::Value;
 
 pub fn list_ref(val: &Value, index: usize) -> Value {
     let article = if index == 0 { "the first" } else { "an" };
     if let Value::List(l) = val {
-        if l.len() < index + 1 {
+        debug!("list_ref: {:?}[{}]", l, index);
+        let list: Vec<Value> = l
+            .iter()
+            .map(|v| v.clone())
+            .filter(|v| !v.is_nil())
+            .collect();
+        if list.len() < index + 1 {
             panic!(
                 "The object (), passed as {} argument to {}car, is not the correct type.",
                 article,
                 if index == 0 { "" } else { "safe-" },
             );
         }
-        l[index].clone()
+        list[index].clone()
     } else {
         panic!(
             "The object {}, passed as {} argument to {}cdr, is not the correct type.",
@@ -24,7 +31,13 @@ pub fn list_ref(val: &Value, index: usize) -> Value {
 pub fn list_rest(val: &Value, start: usize) -> Value {
     let article = if start == 1 { "the first" } else { "an" };
     if let Value::List(l) = val {
-        if l.len() < start {
+        debug!("list_rest: {:?}[{}..]", l, start);
+        let list: Vec<Value> = l
+            .iter()
+            .map(|v| v.clone())
+            .filter(|v| !v.is_nil())
+            .collect();
+        if list.len() < start {
             panic!(
                 "The object (), passed as {} argument to {}cdr, is not the correct type.",
                 article,
@@ -32,15 +45,13 @@ pub fn list_rest(val: &Value, start: usize) -> Value {
             );
         }
         let rest = l[start..].to_vec();
-        if rest.len() == 1 {
-            if rest[0].is_nil() {
-                Value::List(vec![])
-            } else {
-                rest[0].clone()
+        debug!("rest: {:?}", rest);
+        if !rest.is_empty() {
+            if l.len() != list.len() {
+                return rest[0].clone();
             }
-        } else {
-            Value::new(rest)
         }
+        Value::new(rest)
     } else {
         panic!(
             "The object {}, passed as {} argument to {}cdr, is not the correct type.",

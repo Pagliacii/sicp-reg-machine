@@ -26,11 +26,11 @@ pub fn make_machine(
     }
     // Provides a `read` procedure to read inputs from user,
     // and a `print` procedure to print outputs on the screen.
-    machine.install_procedure("read", 0, |_| read_line_buffer());
-    machine.install_procedure("print", 1, |args: Vec<Value>| match &args[0] {
+    machine.install_procedure(make_proc!("read", |_| read_line_buffer()));
+    machine.install_procedure(make_proc!("print", 1, |arg: Value| match arg {
         Value::String(s) => println!("{}", s),
-        _ => println!("{}", args[0]),
-    });
+        other => println!("{}", other),
+    }));
     machine.install_procedures(procedures);
     let (insts, labels) =
         assemble(controller_text).map_err(|msg: String| MachineError::UnableAssemble(msg))?;
@@ -55,10 +55,6 @@ pub fn rmlvalue_to_value(r: &RMLValue) -> Value {
         RMLValue::Num(n) => Value::Num(*n as f64),
         RMLValue::Str(s) => Value::String(s.to_string()),
         RMLValue::Symbol(s) => Value::Symbol(s.to_string()),
-        RMLValue::List(l) => {
-            let mut list = l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>();
-            list.push(Value::Nil);
-            Value::List(list)
-        }
+        RMLValue::List(l) => Value::List(l.iter().map(rmlvalue_to_value).collect::<Vec<Value>>()),
     }
 }

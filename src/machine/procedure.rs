@@ -77,23 +77,59 @@ impl ToValue for Procedure {
     }
 }
 
+#[macro_export]
+macro_rules! make_proc {
+    ( $name:literal, |_| { $exps:expr }) => {
+        Procedure::new($name, 0, |_| $exps)
+    };
+    ( $name:literal, $num:literal, |$($arg_name:ident:$arg_type:ty),+| { $exps:expr } ) => {
+        Procedure::new($name, $num, |args| {
+            let mut idx = 0usize;
+            $(
+                let $arg_name: $arg_type = $crate::machine::value::TryFromValue::try_from(&args[idx]).unwrap();
+                #[allow(unused_assignments)]
+                {
+                    idx += 1;
+                }
+            )+
+            $exps
+        })
+    };
+    ( $name:literal, |_| $exps:expr ) => {
+        make_proc!($name, |_| { $exps })
+    };
+    ( $name:literal, $num:literal, |$($arg_name:ident:$arg_type:ty),+| $exps:expr ) => {
+        make_proc!($name, $num, |$($arg_name:$arg_type),+| { $exps })
+    }
+}
+
 #[cfg(test)]
 mod procedure_tests {
     use super::*;
 
     #[test]
     fn test_procedure_constructor() {
-        let proc = Procedure::new("test", 0, |_: Vec<Value>| Value::Num(1.0));
-        let result = proc.execute(vec![]);
-        assert_eq!(Ok(Value::Num(1.0)), result);
+        let proc = Procedure::new("test", 0, |_| Value::Num(1.0));
+        let res = proc.execute(vec![]);
+        assert_eq!(Ok(Value::Num(1.0)), res);
     }
 
     #[test]
     fn test_execute_procedure() {
-        let op = Procedure::new("add", 2, |args: Vec<Value>| {
+        let proc = Procedure::new("add", 2, |args: Vec<Value>| {
             args[0].clone() + args[1].clone()
         });
-        let res = op.execute(vec![1.to_value(), 2.to_value()]);
+        let res = proc.execute(vec![1.to_value(), 2.to_value()]);
+        assert_eq!(Ok(3.to_value()), res);
+    }
+
+    #[test]
+    fn test_procedure_macro() {
+        let proc = make_proc!("test", |_| Value::Num(1.0));
+        let res = proc.execute(vec![]);
+        assert_eq!(Ok(1.to_value()), res);
+        let proc = make_proc!("add", 2, |augend: i32, addend: i32| augend + addend);
+        let res = proc.execute(vec![1.to_value(), 2.to_value()]);
         assert_eq!(Ok(3.to_value()), res);
     }
 }

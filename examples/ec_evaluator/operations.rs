@@ -2,6 +2,7 @@ use reg_machine::machine::{
     procedure::Procedure,
     value::{ToValue, TryFromValue, Value},
 };
+use reg_machine::make_proc;
 
 use super::supports::{
     environment::{get_global_environment, manipulate_env},
@@ -78,21 +79,26 @@ pub fn operations() -> Vec<Procedure> {
     let is_last_one = Procedure::new("is_last_one", 1, |args| is_last_one(&args[0]));
 
     let mut operations: Vec<Procedure> = vec![];
-    operations.push(Procedure::new("read", 0, |_| read()));
-    operations.push(Procedure::new("debug", 1, |args| println!("{:?}", args[0])));
-    operations.push(Procedure::new("prompt-for-input", 1, |args| {
-        prompt_for_input(&args[0])
+    operations.push(make_proc!("read", |_| read()));
+    operations.push(make_proc!("debug", 1, |arg: Value| println!("{:?}", arg)));
+    operations.push(make_proc!("prompt-for-input", 1, |arg: Value| {
+        prompt_for_input(&arg)
     }));
-    operations.push(Procedure::new("announce-output", 1, |args| {
-        announce_output(&args[0])
+    operations.push(make_proc!("announce-output", 1, |arg: Value| {
+        announce_output(&arg)
     }));
-    operations.push(Procedure::new("user-print", 1, |args| user_print(&args[0])));
-    operations.push(Procedure::new("get-global-environment", 0, |_| {
+    operations.push(make_proc!("user-print", 1, |arg: Value| user_print(&arg)));
+    operations.push(make_proc!("get-global-environment", |_| {
         get_global_environment()
     }));
-    operations.push(Procedure::new("lookup-variable-value", 2, |args| {
-        manipulate_env("lookup", &args[1], &args[..1])
-    }));
+    #[rustfmt::skip]
+    operations.push(make_proc!(
+        "lookup-variable-value",
+        2,
+        |exp: Vec<Value>, env: Value | {
+            manipulate_env("lookup", &env, &exp[..])
+        }
+    ));
     operations.push(Procedure::new("set-variable-value!", 3, |args| {
         manipulate_env("update", &args[2], &args[..2])
     }));
@@ -102,8 +108,8 @@ pub fn operations() -> Vec<Procedure> {
     operations.push(Procedure::new("define-variable!", 3, |args| {
         manipulate_env("define", &args[2], &args[..2]);
     }));
-    operations.push(Procedure::new("self-evaluating?", 1, |args| {
-        args[0].is_num() || args[0].is_string()
+    operations.push(make_proc!("self-evaluating?", 1, |arg: Value| {
+        arg.is_num() || arg.is_string()
     }));
     operations.push(Procedure::new("variable?", 1, |args| args[0].is_symbol()));
     operations.push(Procedure::new("application?", 1, |args| {

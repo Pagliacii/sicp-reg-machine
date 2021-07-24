@@ -45,15 +45,8 @@ impl Machine {
         self.stack.print_statistics();
     }
 
-    pub fn install_procedure<F, R, S>(&mut self, name: S, arg_num: usize, f: F)
-    where
-        F: Fn(Vec<Value>) -> R + Send + Sync + 'static,
-        R: ToValue,
-        S: Into<String>,
-    {
-        let name: String = name.into();
-        self.the_procedures
-            .insert(name.to_string(), Procedure::new(name, arg_num, f));
+    pub fn install_procedure(&mut self, proc: Procedure) {
+        self.the_procedures.insert(proc.get_name(), proc);
     }
 
     pub fn install_procedures(&mut self, procedures: &Vec<Procedure>) {
@@ -398,6 +391,7 @@ impl Machine {
 #[cfg(test)]
 mod machine_tests {
     use super::*;
+    use crate::make_proc;
 
     #[test]
     fn test_make_new_machine() {
@@ -438,9 +432,7 @@ mod machine_tests {
     #[test]
     fn test_install_procedure() {
         let mut m = Machine::new();
-        m.install_procedure("add", 2, |args: Vec<Value>| {
-            args[0].clone() + args[1].clone()
-        });
+        m.install_procedure(make_proc!("add", 2, |a: i32, b: i32| a + b));
         let res = m.call_procedure("add", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(2)), res);
     }
@@ -448,18 +440,10 @@ mod machine_tests {
     #[test]
     fn test_install_procedures() {
         let mut procedures: Vec<Procedure> = vec![];
-        procedures.push(Procedure::new("add", 2, |args: Vec<Value>| {
-            args[0].clone() + args[1].clone()
-        }));
-        procedures.push(Procedure::new("sub", 2, |args: Vec<Value>| {
-            args[0].clone() - args[1].clone()
-        }));
-        procedures.push(Procedure::new("mut", 2, |args: Vec<Value>| {
-            args[0].clone() * args[1].clone()
-        }));
-        procedures.push(Procedure::new("div", 2, |args: Vec<Value>| {
-            args[0].clone() / args[1].clone()
-        }));
+        procedures.push(make_proc!("add", 2, |a: i32, b: i32| a + b));
+        procedures.push(make_proc!("sub", 2, |a: i32, b: i32| a - b));
+        procedures.push(make_proc!("mul", 2, |a: i32, b: i32| a * b));
+        procedures.push(make_proc!("div", 2, |a: i32, b: i32| a / b));
 
         let mut m = Machine::new();
         m.install_procedures(&procedures);
@@ -468,7 +452,7 @@ mod machine_tests {
         assert_eq!(Ok(Value::new(2)), res);
         let res = m.call_procedure("sub", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(0)), res);
-        let res = m.call_procedure("mut", vec![Value::new(1), Value::new(1)]);
+        let res = m.call_procedure("mul", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(1)), res);
         let res = m.call_procedure("div", vec![Value::new(1), Value::new(1)]);
         assert_eq!(Ok(Value::new(1)), res);
