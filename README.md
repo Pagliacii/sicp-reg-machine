@@ -264,3 +264,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - H2CO3 - [How to use a HashMap to store a struct method?](https://users.rust-lang.org/t/how-to-use-a-hashmap-to-store-a-struct-method/61726/2)
 - Geoffroy Couprie - [Geal/nom](https://github.com/Geal/nom)
 - code and bitters - [Learning Rust: Let's Build a Parser!](https://codeandbitters.com/lets-build-a-parser/)
+- 2e71828 - [How to import a trait defined at another file inside a macro?](https://users.rust-lang.org/t/how-to-import-a-trait-defined-at-another-file-inside-a-macro/62697)
